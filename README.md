@@ -11,7 +11,7 @@ This is an expanded Training tab
 - automatically lowers gradient accumulation if you go overboard and set gradient accumulation that will be higher than actual data - transformers would then throw error (or they used to, not sure if still true) but in any way, it will fix bad data
 - turn BOS on and OFF
 - target selector
-- DEMENTOR LEARNING (experimental) Deep Memorization Enforcement Through Overlapping and Repetition. A new method of long-text learning
+- DEMENTOR LEARNING (experimental) Deep Memorization Enforcement Through Overlapping and Repetition. This is an experiment for long-text learning. 
 
 ### Notes:
 
