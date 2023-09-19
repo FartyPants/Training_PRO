@@ -74,7 +74,7 @@ def ui():
         tmp = gr.State('')
         with gr.Row():
             with gr.Column():
-                gr.Markdown("`Ver: 23.09.09` This is enhanced version of QLora Training. Maintained by [FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 23.09.19` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -656,7 +656,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         lr_scheduler_type_arg = 'cosine'
     elif lr_scheduler_type == 'FP_half_time_annealing':
         custom_scheduller = True
-        lr_scheduler_type_arg = 'sine'
+        lr_scheduler_type_arg = 'constant'
     
     args=transformers.TrainingArguments(
             report_to=report_to if report_to != "None" else None,

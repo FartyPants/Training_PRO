@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import LambdaLR
 last_print_label = ''
 
 # hold constant to the half of epochs then cosine down to 0
-def _get_fp_sine_schedule_with_warmup_lr_lambda(current_step: int, *, num_warmup_steps: int, num_training_steps: int, num_firstepoch_steps: int):
+def _get_fp_half_schedule_with_warmup_lr_lambda(current_step: int, *, num_warmup_steps: int, num_training_steps: int, num_firstepoch_steps: int):
     
     global last_print_label
     print_label = ''
@@ -95,7 +95,7 @@ def custom_cosine_scheduler_with_warmup(optimizer, num_warmup_steps, num_trainin
     )
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
-def custom_sine_scheduler_with_warmup(optimizer, num_warmup_steps, num_training_steps, num_firstepoch_steps, last_epoch=-1):
+def custom_half_scheduler_with_warmup(optimizer, num_warmup_steps, num_training_steps, num_firstepoch_steps, last_epoch=-1):
     """
     Args:
         optimizer ([`~torch.optim.Optimizer`]):
@@ -112,7 +112,7 @@ def custom_sine_scheduler_with_warmup(optimizer, num_warmup_steps, num_training_
     """
     
     lr_lambda = partial(
-        _get_fp_sine_schedule_with_warmup_lr_lambda,
+        _get_fp_half_schedule_with_warmup_lr_lambda,
         num_warmup_steps=num_warmup_steps,
         num_training_steps=num_training_steps,
         num_firstepoch_steps = num_firstepoch_steps,
@@ -133,7 +133,7 @@ class FPSchedulerTrainer(transformers.Trainer):
         num_firstepoch_steps_acc = num_firstepoch_steps*self.args.gradient_accumulation_steps
         num_training_steps_acc = num_training_steps*self.args.gradient_accumulation_steps
         
-        print (f"Warm-up steps ({num_warmup_steps}) * Gradient accumulation ({self.args.gradient_accumulation_steps}) = ({num_warmup_acc}) steps")
+        print (f"Warm-up steps ({num_warmup_steps}) * Gradient accumulation ({self.args.gradient_accumulation_steps}) = {num_warmup_acc} actual warmup steps")
         if self.args.lr_scheduler_type == 'cosine':
             
             num_warmup_acc_min = min(num_warmup_acc, num_firstepoch_steps_acc)
@@ -152,7 +152,7 @@ class FPSchedulerTrainer(transformers.Trainer):
                 )
             self._created_lr_scheduler = True
             return self.lr_scheduler
-        elif self.args.lr_scheduler_type == 'sine':
+        elif self.args.lr_scheduler_type == 'constant':
            
             half_step_acc = num_training_steps_acc//2
             num_warmup_acc_min = min(num_warmup_acc, half_step_acc)
@@ -163,7 +163,7 @@ class FPSchedulerTrainer(transformers.Trainer):
             else:
                 print (f"FP Scheduler Warmup: 0-{num_warmup_acc_min}, Hold {num_warmup_acc_min}-{half_step_acc}, Annealing {half_step_acc}-{num_training_steps_acc}")
 
-            self.lr_scheduler = custom_sine_scheduler_with_warmup(
+            self.lr_scheduler = custom_half_scheduler_with_warmup(
                     optimizer=self.optimizer if optimizer is None else optimizer,
                     num_warmup_steps=num_warmup_steps,
                     num_training_steps=num_training_steps, 
