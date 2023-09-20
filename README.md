@@ -20,3 +20,7 @@ This uses it's own chunking code for raw text based on sentence splitting. This 
 ### Targets
 
 Normal LORA is q, v and that's what you should use. You can use (q k v o) or (q k v) and it will give you a lot more trainable parameters. The benefit is that you can keep rank lower and still attain the same coherency as q v with high rank. Guanaco has been trained with QLORA and q k v o for example and they swear by it.
+
+### DEMENTOR LEARNING (experimental) Deep Memorization Enforcement Through Overlapping and Repetition
+
+This is and experimental chunking to train long-form text in low number of epochs (basically 1) with sliding repetition. The depth of learning directly depends on the cutoff_length. Increasing cutoff length will also increase number of blocks created from long-form text (which is contrary to normal training). It is based on my own wild experiments. 
