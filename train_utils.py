@@ -186,7 +186,8 @@ def precise_cut(text: str, overlap: bool, min_chars_cut: int, eos_to_hc: bool, c
         output_file = "logs/sentencelist.json"
         with open(output_file, 'w') as f:
             json.dump(sentencelist_dict, f,indent=2)
-
+        
+        print("Saved sentencelist.json in logs folder")
     
     return sentencelist   
 
@@ -273,5 +274,6 @@ def sliding_block_cut(text: str, min_chars_cut: int, eos_to_hc: bool, cutoff_len
         with open(output_file, 'w') as f:
             json.dump(sentencelist_dict, f,indent=2)
         
+        print("Saved sentencelist.json in logs folder")
     
     return sentencelist   

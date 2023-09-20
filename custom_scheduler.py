@@ -133,7 +133,7 @@ class FPSchedulerTrainer(transformers.Trainer):
         num_firstepoch_steps_acc = num_firstepoch_steps*self.args.gradient_accumulation_steps
         num_training_steps_acc = num_training_steps*self.args.gradient_accumulation_steps
         
-        print (f"Warm-up steps ({num_warmup_steps}) * Gradient accumulation ({self.args.gradient_accumulation_steps}) = {num_warmup_acc} actual warmup steps")
+        print (f"Warm-up steps aligned to Gradient accumulation ({self.args.gradient_accumulation_steps}) = {num_warmup_acc} actual warmup steps")
         if self.args.lr_scheduler_type == 'cosine':
             
             num_warmup_acc_min = min(num_warmup_acc, num_firstepoch_steps_acc)

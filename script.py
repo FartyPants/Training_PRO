@@ -149,8 +149,8 @@ def ui():
                     with gr.Row():
                         with gr.Column():
                             precize_slicing_overlap = gr.Checkbox(label='Add Overlapping blocks', value = True)
-                            sliding_window = gr.Checkbox(label='DEMENTROR Learning by FP (Highly Experimental)', value = False, info='Deep Memorization Enforcement Through Overlapping and Repetition. (I named it that, so shush). Special process for learning from long-form text')
-                            debug_slicer = gr.Checkbox(label='Dump sentencelist.json to logs/', value = non_serialized_params['debug_slicer'], info='Debug Slicer')
+                            sliding_window = gr.Checkbox(label='DEMENTROR Long-form Learning by FP (Highly Experimental, use low epochs)', value = False, info='Deep Memorization Enforcement Through Overlapping and Repetition. (I named it, so shush). Special process for learning long-form text using low amount of epochs.')
+                            #debug_slicer = gr.Checkbox(label='Dump sentencelist.json to logs', value = non_serialized_params['debug_slicer'], info='Debug Slicer')
 
                         with gr.Column():
                             hard_cut_string = gr.Textbox(label='Hard Cut String', value='\\n\\n\\n', info='String that indicates a cut between logical blocks of text (ex. Ideas or Chapters). Helps prevent unwanted overlap between unrelated ideas.')
@@ -217,7 +217,7 @@ def ui():
     # nonserialized items
 
     sort_byTime.change(lambda x: non_serialized_params.update({"Lora_sortedByTime": x}), sort_byTime, None).then(reload_lora,None,copy_from) 
-    debug_slicer.change(lambda x: non_serialized_params.update({"debug_slicer": x}), debug_slicer, None)
+    #debug_slicer.change(lambda x: non_serialized_params.update({"debug_slicer": x}), debug_slicer, None)
 
 
 def do_interrupt():
