@@ -15,6 +15,7 @@ This is an expanded Training tab
 - Geting rid of micro batch size/batch size confusion. Now there is True Batch Size and Gradient accumulation slider, consisten with all the other training out there
 - Ability to save Checkpoint during training with a button
 - different modes of checkpoint auto saving
+- Function to Check Dataset and suggest parameters such as warmup and checkpoint save frequency
   
 ### Notes:
 
