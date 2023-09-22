@@ -37,13 +37,15 @@ Listen, There is only ONE batch size - the True batch size - this is how many bl
 The other thing is Gradient Accumulation - this is an emulation of batch size - a virtual batch size, if you will. If your GPU can't handle real batch size then you may fake it using Gradient Accumulation. This will accumulate the gradients over so many steps defined here and then update the weights at the end without increase in GPU.
 Gradient accumulation is like a virtual Batch size multiplier without the GPU penalty.
 
-If your batch size is 4 and your gradient accumulation is 2 then it sort of behaves as if we have batch size 8. *Sort of* because Batch size of 4 and GA of 1 is NOT the same as batch size of 1 and GA of 4. It produces different weights - hence it's not an equivalent. The idea is that if you don't have GPU - using GA to extend batch size is the next best thing (good enough) since you have no other choice.
+If your batch size is 4 and your gradient accumulation is 2 then it sort of behaves as if we have batch size 8. *Sort of* because Batch size of 4 and GA of 2 is NOT the same as batch size of 2 and GA of 4. (It produces different weights - hence it's not an equivalent). The idea is that if you don't have GPU - using GA to extend batch size is the next best thing (good enough) since you have no other choice.
 
-However - GA is not some golden goose. As said, it isn't the same as batch size. In fact GA may worsen your learning.
+If all you can afford is 1 batch size, then increasing GA will likely make the learning better.
 
-I would suggest a series of experiment where you would put batch size as high as possible without OOM, set GA 1, then repeat training while increasing the GA (2, 4...), and see how the model changes. It's likely that it would follow some sort of curve where GA will seem to help before it will make it worse.
+However - GA is not some golden goose. As said, it isn't the same as batch size. In fact GA may actually worsen your learning.
 
-High Batch Size vs High GA would also produce different results in term of learning exact words vs style learning. 
+I would suggest a series of experiment where you would put batch size as high as possible without OOM, set GA 1, then repeat training while increasing the GA (2, 4...), and see how the model changes. It's likely that it would follow some sort of curve where GA will seem to help before it will make it worse. Some people believe that if you can squeeze 6 BATCH Size, then you should not bother with GA at all... YMMW
+
+High Batch Size vs High GA would also likely produce different results in term of learning exact words vs style learning. How? Hmmmm... good question.
 
 
 
