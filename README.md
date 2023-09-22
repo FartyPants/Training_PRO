@@ -32,20 +32,19 @@ This is and experimental chunking to train long-form text in low number of epoch
 
 Keeping consistency with everyone else. 
 
-Listen, There is only ONE batch size - the True batch size - this is how many blocks are processed at once (during a step). It eats GPU, but it really helps with the quality training (in fact the ideal batch size would be the same as number of blocks - which is unrealistic) - so the idea is to cram as much True Batch Size before your GPU blows with OOM. On 24GB this is about 10 for 13b (loaded with 4-bit)
+Listen, There is only ONE batch size - the True batch size (called previously micro-batch size in WebUI) - this is how many blocks are processed at once (during a single step). It eats GPU, but it really helps with the quality training (in fact the ideal batch size would be the same as number of blocks - which is unrealistic) - so the idea is to cram as much True Batch Size before your GPU blows with OOM. On 24GB this is about 10 for 13b (loaded with 4-bit)
 
-The other thing is Gradient Accumulation - this is an emulation of batch size - a virtual batch size, if you will. If your GPU can't handle real batch size then you may fake it using Gradient Accumulation. This will accumulate the gradients over so many steps defined here and then update the weights at the end without increase in GPU.
+So no micro batch size - it is now called True Batch Size, because that's what it is.
+
+The other thing is Gradient Accumulation - this is an emulation of the above Batch size - a virtual batch size, if you will. If your GPU can't handle real batch size then you may fake it using Gradient Accumulation. This will accumulate the gradients over so many steps defined here and then update the weights at the end without increase in GPU.
 Gradient accumulation is like a virtual Batch size multiplier without the GPU penalty.
 
 If your batch size is 4 and your gradient accumulation is 2 then it sort of behaves as if we have batch size 8. *Sort of* because Batch size of 4 and GA of 2 is NOT the same as batch size of 2 and GA of 4. (It produces different weights - hence it's not an equivalent). The idea is that if you don't have GPU - using GA to extend batch size is the next best thing (good enough) since you have no other choice.
 
-If all you can afford is 1 batch size, then increasing GA will likely make the learning better.
+If all you can afford is 1 batch size, then increasing GA will likely make the learning better in some range of GA.
 
-However - GA is not some golden goose. As said, it isn't the same as batch size. In fact GA may actually worsen your learning.
+However - GA is not some golden goose. As said, it isn't the same as batch size. In fact GA may worsen your learning as well.
 
 I would suggest a series of experiment where you would put batch size as high as possible without OOM, set GA 1, then repeat training while increasing the GA (2, 4...), and see how the model changes. It's likely that it would follow some sort of curve where GA will seem to help before it will make it worse. Some people believe that if you can squeeze 6 BATCH Size, then you should not bother with GA at all... YMMW
 
-High Batch Size vs High GA would also likely produce different results in term of learning exact words vs style learning. How? Hmmmm... good question.
-
-
-
+High Batch Size vs High GA would also likely produce different results in terms of learning exact words vs style learning. How? Hmmmm... good question.
