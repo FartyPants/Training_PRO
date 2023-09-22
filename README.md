@@ -31,7 +31,9 @@ This is and experimental chunking to train long-form text in low number of epoch
 ### Getting rid of batch size and micro batch size
 
 Keeping consistency with everyone else. 
+
 Listen, There is only ONE batch size - the True batch size - this is how many blocks are processed at once (during a step). It eats GPU, but it really helps with the quality training (in fact the ideal batch size would be the same as number of blocks - which is unrealistic) - so the idea is to cram as much True Batch Size before your GPU blows with OOM. On 24GB this is about 10 for 13b (loaded with 4-bit)
+
 The other thing is Gradient Accumulation - this is an emulation of batch size - a virtual batch size, if you will. If your GPU can't handle real batch size then you may fake it using Gradient Accumulation. This will accumulate the gradients over so many steps defined here and then update the weights at the end without increase in GPU.
 Gradient accumulation is like a virtual Batch size multiplier without the GPU penalty.
 
