@@ -78,7 +78,8 @@ def ui():
         tmp = gr.State('')
         with gr.Row():
             with gr.Column():
-                gr.Markdown("`Ver: 23.09.21` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                # YY.MM.DD
+                gr.Markdown("`Ver: 23.09.22` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -116,7 +117,7 @@ def ui():
                         with gr.Column():
                             save_steps = gr.Number(label='Save every n steps', value=0, info='A checkpoint will be saved every n steps. (0 = OFF)')
                         with gr.Column():    
-                            save_steps_under_loss = gr.Slider(label='Save at Loss', value=1.8, minimum=0.0, maximum=3.0, step=0.1, info="Saves checkpoints at (or bellow) this loss and then each time loss falls by 0.1. This works independently from 'Save every n steps'")    
+                            save_steps_under_loss = gr.Slider(label='Save each 0.1 Loss', value=1.8, minimum=0.0, maximum=3.0, step=0.1, info="Saves checkpoints at (or bellow) this loss and then each time loss falls by 0.1. This works independently from 'Save every n steps'")    
                     with gr.Row():        
                         save_chackpoint_now = gr.Button('Queue Checkpoint Now')
 
@@ -142,18 +143,20 @@ def ui():
             with gr.Column():
                 with gr.Tab(label='Formatted Dataset'):
                     with gr.Row():
-                        format = gr.Dropdown(choices=utils.get_datasets('training/formats', 'json'), value='None', label='Data Format', info='The format file used to decide how to format the dataset input.', elem_classes=['slim-dropdown'])
-                        create_refresh_button(format, lambda: None, lambda: {'choices': utils.get_datasets('training/formats', 'json')}, 'refresh-button')
+                        with gr.Column():
+                            with gr.Row():
+                                dataset = gr.Dropdown(choices=utils.get_datasets('training/datasets', 'json'), value='None', label='Dataset', info='The dataset file to use for training.', elem_classes=['slim-dropdown'])
+                                create_refresh_button(dataset, lambda: None, lambda: {'choices': utils.get_datasets('training/datasets', 'json')}, 'refresh-button')
+                            with gr.Row():
+                                eval_dataset = gr.Dropdown(choices=utils.get_datasets('training/datasets', 'json'), value='None', label='Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', elem_classes=['slim-dropdown'])
+                                create_refresh_button(eval_dataset, lambda: None, lambda: {'choices': utils.get_datasets('training/datasets', 'json')}, 'refresh-button')
 
-                    with gr.Row():
-                        dataset = gr.Dropdown(choices=utils.get_datasets('training/datasets', 'json'), value='None', label='Dataset', info='The dataset file to use for training.', elem_classes=['slim-dropdown'])
-                        create_refresh_button(dataset, lambda: None, lambda: {'choices': utils.get_datasets('training/datasets', 'json')}, 'refresh-button')
-
-                    with gr.Row():
-                        eval_dataset = gr.Dropdown(choices=utils.get_datasets('training/datasets', 'json'), value='None', label='Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', elem_classes=['slim-dropdown'])
-                        create_refresh_button(eval_dataset, lambda: None, lambda: {'choices': utils.get_datasets('training/datasets', 'json')}, 'refresh-button')
-
-                    eval_steps = gr.Number(label='Evaluate every n steps', value=100, info='If an evaluation dataset is given, test it every time this many steps pass.')
+                        with gr.Column():
+                            with gr.Row():
+                                format = gr.Dropdown(choices=utils.get_datasets('training/formats', 'json'), value='None', label='Data Format', info='The format file used to decide how to format the dataset input.', elem_classes=['slim-dropdown'])
+                                create_refresh_button(format, lambda: None, lambda: {'choices': utils.get_datasets('training/formats', 'json')}, 'refresh-button')
+                            with gr.Row():
+                                eval_steps = gr.Number(label='Evaluate every n steps', value=100, info='If an evaluation dataset is given, test it every time this many steps pass.')
 
                 with gr.Tab(label="Raw text file"):
                     with gr.Row():
@@ -163,12 +166,16 @@ def ui():
                     with gr.Row():
                         with gr.Column():
                             precize_slicing_overlap = gr.Checkbox(label='Add Overlapping blocks', value = True)
-                            sliding_window = gr.Checkbox(label='DEMENTROR Long-form Learning by FP (Highly Experimental, use low epochs)', value = False, info='Deep Memorization Enforcement Through Overlapping and Repetition. (I named it, so shush). Special process for learning long-form text using low amount of epochs.')
+                            sliding_window = gr.Checkbox(label='DEMENTOR Long-form Learning by FP (Highly Experimental, use low epochs)', value = False, info='Deep Memorization Enforcement Through Overlapping and Repetition. (I named it, so shush). Special process for learning long-form text using low amount of epochs.')
                             #debug_slicer = gr.Checkbox(label='Dump sentencelist.json to logs', value = non_serialized_params['debug_slicer'], info='Debug Slicer')
 
                         with gr.Column():
                             hard_cut_string = gr.Textbox(label='Hard Cut String', value='\\n\\n\\n', info='String that indicates a cut between logical blocks of text (ex. Ideas or Chapters). Helps prevent unwanted overlap between unrelated ideas.')
                             min_chars = gr.Number(label='Ignore small blocks', value=0, info='Ignore Text blocks that have less or equal characters than this number.')
+                with gr.Row():
+                    with gr.Column():
+                        check_dataset_btn = gr.Button('Load and Check Dataset and suggest data entries')    
+                        check_dataset_txt = gr.Textbox(label='Dataset info', value='')
 
                 with gr.Row():
                     start_button = gr.Button("Start LoRA Training", variant='primary')
@@ -235,6 +242,105 @@ def ui():
 
 
     save_chackpoint_now.click(trigger_save_checkpoint, None, None)
+
+    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation]
+
+    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int):
+        result = "Specify JSON dastaset or raw text file"
+        total_blocks = 0
+        if shared.tokenizer is None:
+            yield "Tokenizer is not available. Please Load some Model first."
+            return
+        
+        if raw_text_file not in ['None', '']:
+            logger.info("Loading raw text file dataset...")
+            fullpath = clean_path('training/datasets', f'{raw_text_file}')
+            fullpath = Path(fullpath)
+            if fullpath.is_dir():
+                logger.info('Training path directory {}'.format(raw_text_file))
+                raw_text = ""
+                file_paths = sorted(fullpath.glob('*.txt'), key=lambda path: natural_keys(path.name))
+                for file_path in file_paths:
+                    if file_path.is_file():
+                        with file_path.open('r', encoding='utf-8') as file:
+                            raw_text += file.read().replace('\r', '')
+
+                        logger.info(f"Loaded training file: {file_path.name}")
+            else:
+                with open(clean_path('training/datasets', f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
+                    raw_text = file.read().replace('\r', '')
+        
+ 
+            if min_chars<0:
+                min_chars = 0
+
+            # == New more precise slicing on sentence boundary ==
+            if sliding_window:
+                text_chunks = sliding_block_cut(raw_text, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
+            else:
+                text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
+
+            total_blocks = len(text_chunks)
+            result = f"Raw Text: ({raw_text_file}.txt) has {total_blocks} blocks (with cutoff length = {cutoff_len})"
+            del text_chunks
+       
+        else:
+            if dataset in ['None', '']:
+                yield "Select dataset or Raw text."
+                return 
+
+            if format in ['None', '']:
+                yield "Select format choice for dataset."
+                return
+
+            with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
+                format_data: dict[str, str] = json.load(formatFile)
+
+            def generate_prompt(data_point: dict[str, str]):
+                for options, data in format_data.items():
+                    if set(options.split(',')) == set(x[0] for x in data_point.items() if (type(x[1]) is str and len(x[1].strip()) > 0)):
+                        for key, val in data_point.items():
+                            if type(val) is str:
+                                data = data.replace(f'%{key}%', val)
+                        return data
+                raise RuntimeError(f'Data-point "{data_point}" has no keyset match within format "{list(format_data.keys())}"')
+
+            logger.info("Loading JSON datasets...")
+            data = load_dataset("json", data_files=clean_path('training/datasets', f'{dataset}.json'))
+            text_chunks = []
+            for data_point in data:
+                prompt = generate_prompt(data_point, format_data)
+                text_chunks.append(prompt)
+
+            total_blocks = len(text_chunks)
+            del text_chunks
+            result = f"Dataset: ({dataset}.json) has {total_blocks} blocks (with cutoff length = {cutoff_len})"
+
+        if total_blocks>0:
+            number_ofSteps = int(math.ceil(total_blocks / micro_batch_size) * epochs) 
+            num_stepsPer_epoch = int(math.ceil(number_ofSteps/epochs))
+            min_warm = math.ceil(100 / grad_accumulation)
+
+            warmup_steps_suggest = min(int(min_warm*grad_accumulation), int(math.ceil(number_ofSteps * 0.1)))
+            warmup_steps_suggest = min(warmup_steps_suggest,num_stepsPer_epoch)
+
+            save_each_n_min = int(math.ceil(number_ofSteps/10))
+            save_each_n_max = int(math.ceil(number_ofSteps/5))
+            gradient_accumulation_max = int(total_blocks)//micro_batch_size
+    
+            result += f"\n[Batch Size: {micro_batch_size}, Epochs: {epochs}, Gradient Accumulation: {grad_accumulation}]\n"
+            result += f"Total number of steps: {number_ofSteps}\n"
+            result += f"Steps per each Epoch: {num_stepsPer_epoch}\n"
+            result += f"Warmup steps suggestion: {warmup_steps_suggest} (Current: {int(warmup_steps)})\n"
+            result += f"Checkpoint suggestion: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)})"
+            if gradient_accumulation_max < grad_accumulation: 
+                result += f"\n\nWARNING: Gradient Accumulation {grad_accumulation} is too high: It should be below {gradient_accumulation_max}"
+
+
+        yield result
+        return
+    
+    check_dataset_btn.click(check_dataset, dataset_calc_params ,check_dataset_txt)
 
     # Evaluation events. For some reason, the interrupt event
     # doesn't work with the .then() syntax, so I write them one
@@ -496,6 +602,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         if add_EOS_to_all:
             print(f"Added EOS to {len(text_chunks)} blocks") 
 
+        print(f"All Data Blocks: {len(text_chunks)}")
+
         del text_chunks
         eval_data = None
     else:
@@ -664,7 +772,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
                 if force_save:       
                     lora_model.save_pretrained(f"{lora_file_path}/{folder_save}/")
-                    print(f"\033[1;30;40mStep: Saved: {tracked.current_steps:6} \033[0;37;0m {folder_save}")
+                    print(f"\033[1;30;40mStep: {tracked.current_steps:6} \033[0;37;0m Saved: [{folder_save}]")
                     # Save log
                     with open(f"{lora_file_path}/{folder_save}/training_log.json", 'w', encoding='utf-8') as file:
                         json.dump(train_log, file, indent=2)
@@ -897,7 +1005,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
     if WANT_INTERRUPT:
         logger.info("Training interrupted.")
-        yield f"Interrupted. Incomplete LoRA saved to `{lora_file_path}`."
+        yield f"Interrupted by user. LoRA saved to `{lora_file_path}`."
     else:
         logger.info("Training complete!")
         yield f"Done! LoRA saved to `{lora_file_path}`.\n\nBefore testing your new LoRA, make sure to first reload the model, as it is currently dirty from training."
