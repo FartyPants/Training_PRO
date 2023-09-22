@@ -47,4 +47,4 @@ However - GA is not some golden goose. As said, it isn't the same as batch size.
 
 I would suggest a series of experiment where you would put batch size as high as possible without OOM, set GA 1, then repeat training while increasing the GA (2, 4...), and see how the model changes. It's likely that it would follow some sort of curve where GA will seem to help before it will make it worse. Some people believe that if you can squeeze 6 BATCH Size, then you should not bother with GA at all... YMMW
 
-High Batch Size vs High GA would also likely produce different results in terms of learning exact words vs style learning. How? Hmmmm... good question.
+High Batch Size vs High GA would also likely produce different results in terms of learning  words vs style. How? Hmmmm... good question.
