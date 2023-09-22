@@ -1,6 +1,9 @@
 # Training_PRO
 
 This is an expanded Training tab
+Maintained by FP
+
+https://github.com/FartyPants/Training_PRO
 
 - Chunking: precise raw text slicer (PRTS) uses sentence slicing and making sure things are clean on all ends
 - overlap chunking - this special overlapping will make additional overlap block based on logical rules (aka no overlap block on hard cut)
