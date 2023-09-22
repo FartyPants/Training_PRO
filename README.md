@@ -41,7 +41,7 @@ Gradient accumulation is like a virtual Batch size multiplier without the GPU pe
 
 If your batch size is 4 and your gradient accumulation is 2 then it sort of behaves as if we have batch size 8. *Sort of* because Batch size of 4 and GA of 2 is NOT the same as batch size of 2 and GA of 4. (It produces different weights - hence it's not an equivalent). The idea is that if you don't have GPU - using GA to extend batch size is the next best thing (good enough) since you have no other choice.
 
-If all you can afford is 1 batch size, then increasing GA will likely make the learning better in some range of GA.
+If all you can afford is 1 batch size, then increasing GA will likely make the learning better in some range of GA (it's not always more is better).
 
 However - GA is not some golden goose. As said, it isn't the same as batch size. In fact GA may worsen your learning as well.
 
