@@ -1,5 +1,7 @@
 # Training_PRO
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q5MOB4M)
+
 This is an expanded Training tab
 Maintained by FP
 
