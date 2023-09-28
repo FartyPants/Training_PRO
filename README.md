@@ -1,7 +1,5 @@
 # Training_PRO
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q5MOB4M)
-
 This is an expanded Training tab
 Maintained by FP
 
@@ -16,7 +14,7 @@ https://github.com/FartyPants/Training_PRO
 - turn BOS on and OFF
 - target selector
 - DEMENTOR LEARNING (experimental) Deep Memorization Enforcement Through Overlapping and Repetition. This is an experiment for long-text learning using low epochs (basically use 1 epoch with constant LR or 2 epochs with FP_low_epoch_annealing LR scheduler)
-- Geting rid of micro batch size/batch size confusion. Now there is True Batch Size and Gradient accumulation slider, consisten with all the other training out there
+- Getting rid of micro batch size/batch size confusion. Now there is True Batch Size and Gradient accumulation slider, consisten with all the other training out there
 - Ability to save Checkpoint during training with a button
 - Ability to change Stop Loss during training
 - different modes of checkpoint auto saving
@@ -54,3 +52,5 @@ However - GA is not some golden goose. As said, it isn't the same as batch size.
 I would suggest a series of experiment where you would put batch size as high as possible without OOM, set GA 1, then repeat training while increasing the GA (2, 4...), and see how the model changes. It's likely that it would follow some sort of curve where GA will seem to help before it will make it worse. Some people believe that if you can squeeze 6 BATCH Size, then you should not bother with GA at all... YMMW
 
 High Batch Size vs High GA would also likely produce different results in terms of learning  words vs style. How? Hmmmm... good question.
+
+One optical "benefit" of GA is that the loss will fluctuate less (because of all the gradient accumulation, which works as a form of noise smoothing as well).

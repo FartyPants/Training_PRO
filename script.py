@@ -80,7 +80,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 23.09.22` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 23.09.28` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -253,6 +253,7 @@ def ui():
             yield "Tokenizer is not available. Please Load some Model first."
             return
         
+        
         if raw_text_file not in ['None', '']:
             logger.info("Loading raw text file dataset...")
             fullpath = clean_path('training/datasets', f'{raw_text_file}')
@@ -323,10 +324,27 @@ def ui():
 
             logger.info("Loading JSON datasets...")
             data = load_dataset("json", data_files=clean_path('training/datasets', f'{dataset}.json'))
+            
+            data_keys = [] 
+
+            if data:
+                if 'train' in data:  # Check if the 'train' split exists in the dataset
+                    data_keys = list(data['train'][0].keys())
+                    print("Data Keys:", data_keys)
+            else:
+                print("The dataset is empty.")
+
             train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
             total_blocks = train_data.num_rows
 
-            result = f"Dataset: ({dataset}.json) has {total_blocks} blocks (with cutoff length = {cutoff_len})"
+            result = f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len}\nKeys: {data_keys} >> Format ({format}): "
+
+            for options, data in format_data.items():
+                format_keys = options.split(',')
+                result += f"{format_keys}, "
+
+            result = result.rstrip()    
+            result = result.rstrip(',')  
 
         if total_blocks>0:
             number_ofSteps = int(math.ceil(total_blocks / micro_batch_size) * epochs) 
@@ -339,7 +357,8 @@ def ui():
             save_each_n_min = int(math.ceil(number_ofSteps/10))
             save_each_n_max = int(math.ceil(number_ofSteps/5))
             gradient_accumulation_max = int(total_blocks)//micro_batch_size
-    
+
+ 
             result += f"\n[Batch Size: {micro_batch_size}, Epochs: {epochs}, Gradient Accumulation: {grad_accumulation}]\n"
             result += f"Total number of steps: {number_ofSteps}\n"
             result += f"Steps per each Epoch: {num_stepsPer_epoch}\n"
@@ -672,6 +691,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             try:
                 yield f"Reloading {selected_model}..."
                 reload_model()
+                shared.tokenizer.pad_token_id = 0
+                shared.tokenizer.padding_side = "left"
+
                 if shared.model is not None:
                     print("Model reloaded OK, continue with training.")
                 else:
@@ -771,7 +793,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 patience = 3     # Set the number of consecutive steps for tracking stability
                 
                 if gradient_accumulation_steps==1:
-                    patience = 5
+                    patience = 4
 
                 min_steps = 10
 
