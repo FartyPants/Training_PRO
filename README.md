@@ -54,7 +54,7 @@ Like the low epoch, but now the total number of steps is divided by 2. First hal
 
 **FP_raise_fall_creative**
 
-This is a sine raise till half of the total steps then cosine fall the rest. (Or you may think of the curve as cosine in entirety. The most learning is done in the hump, in the middle. The warmup entry has no effect, since sine is automatically warm up.
+This is a sine raise till half of the total steps then cosine fall the rest. (Or you may think of the curve as sine in its entirety. The most learning is done in the hump, in the middle. The warmup entry has no effect, since sine is automatically warm up.
 The idea is to start very mildly as not to overfit with the first blocks of dataset. It seems to broaden the scope of the model making it less strict. (Whatever it means)
 
 ### Targets
