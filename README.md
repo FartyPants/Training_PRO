@@ -3,9 +3,13 @@
 This is an expanded Training tab
 Maintained by FP
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q5MOB4M)
+
+
 In general THIS repo is ahead of the extension included in text WebUi.
 
-New:
+## News
+
 Loss Graph in interface. More custom Schedulers.
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/e389ec69-d7ad-4922-9ad9-865625997479)
 
@@ -26,6 +30,8 @@ https://github.com/FartyPants/Training_PRO
 - Ability to change Stop Loss during training
 - different modes of checkpoint auto saving
 - Function to Check Dataset and suggest parameters such as warmup and checkpoint save frequency before training
+- Graph Training Loss in interface
+- more custom schedulers
   
 ### Notes:
 
