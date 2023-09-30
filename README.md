@@ -9,7 +9,7 @@ Repo home:
 
 https://github.com/FartyPants/Training_PRO
 
-In general THIS repo above is ahead of the extension included in text WebUi.
+In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
