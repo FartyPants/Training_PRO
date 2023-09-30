@@ -141,7 +141,7 @@ def ui():
                             train_only_after = gr.Textbox(label='Train Only After', value='', info='Only consider text *after* this string in any given chunk for training. For Alpaca datasets, use "### Response:" to only train the response and ignore the input.')
                             add_bos_token = gr.Checkbox(label='Add BOS token', value=True, info="Adds BOS token for each dataset item")
                             add_eos_token = gr.Checkbox(label='Add EOS token', value=False, info="Adds EOS token for each dataset item")
-                            add_eos_token_type = gr.Dropdown(label='EOS placement (raw text)', choices=['Every Block', 'Hard Cut Blocks Only'], value='Every Block', info='', allow_custom_value = False)
+                            add_eos_token_type = gr.Dropdown(label='EOS placement (Text file)', choices=['Every Block', 'Hard Cut Blocks Only'], value='Every Block', info='', allow_custom_value = False)
                             
                             higher_rank_limit = gr.Checkbox(label='Enable higher ranks', value=False, info='If checked, changes Rank/Alpha slider above to go much higher. This will not work without a datacenter-class GPU.')
                             report_to = gr.Radio(label="Save detailed logs with", value="None", choices=["None", "wandb", "tensorboard"], interactive=True)
@@ -164,9 +164,9 @@ def ui():
                             with gr.Row():
                                 eval_steps = gr.Number(label='Evaluate every n steps', value=100, info='If an evaluation dataset is given, test it every time this many steps pass.')
 
-                with gr.Tab(label="Raw text file"):
+                with gr.Tab(label="Text file"):
                     with gr.Row():
-                        raw_text_file = gr.Dropdown(choices=utils.get_datasets('training/datasets', 'txt'), value='None', label='Text file', info='The raw text file to use for training.', elem_classes=['slim-dropdown'])
+                        raw_text_file = gr.Dropdown(choices=utils.get_datasets('training/datasets', 'txt'), value='None', label='Text file', info='The text file to use for training.', elem_classes=['slim-dropdown'])
                         create_refresh_button(raw_text_file, lambda: None, lambda: {'choices': utils.get_datasets('training/datasets', 'txt')}, 'refresh-button')
 
                     with gr.Row():
@@ -180,7 +180,7 @@ def ui():
                             min_chars = gr.Number(label='Ignore small blocks', value=0, info='Ignore Text blocks that have less or equal characters than this number.')
                 with gr.Row():
                     with gr.Column():
-                        cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both dataset and raw text. Higher values require much more VRAM.')
+                        cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
                 with gr.Row():
                     with gr.Column():
                         check_dataset_btn = gr.Button('Load and Check Dataset and suggest data entries')    
@@ -200,7 +200,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 models = gr.Dropdown(utils.get_available_models(), label='Models', multiselect=True)
-                evaluate_text_file = gr.Dropdown(choices=['wikitext', 'ptb', 'ptb_new'] + utils.get_datasets('training/datasets', 'txt')[1:], value='wikitext', label='Input dataset', info='The raw text file on which the model will be evaluated. The first options are automatically downloaded: wikitext, ptb, and ptb_new. The next options are your local text files under training/datasets.')
+                evaluate_text_file = gr.Dropdown(choices=['wikitext', 'ptb', 'ptb_new'] + utils.get_datasets('training/datasets', 'txt')[1:], value='wikitext', label='Input dataset', info='The text file on which the model will be evaluated. The first options are automatically downloaded: wikitext, ptb, and ptb_new. The next options are your local text files under training/datasets.')
                 with gr.Row():
                     with gr.Column():
                         stride_length = gr.Slider(label='Stride', minimum=1, maximum=2048, value=512, step=1, info='Used to make the evaluation faster at the cost of accuracy. 1 = slowest but most accurate. 512 is a common value.')
@@ -259,7 +259,7 @@ def ui():
     dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation]
 
     def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int):
-        result = "Specify JSON dastaset or raw text file"
+        result = "Specify JSON dastaset or Text file"
         total_blocks = 0
         if shared.tokenizer is None:
             yield "Tokenizer is not available. Please Load some Model first."
@@ -267,7 +267,7 @@ def ui():
         
         
         if raw_text_file not in ['None', '']:
-            logger.info("Loading raw text file dataset...")
+            logger.info("Loading Text file...")
             fullpath = clean_path('training/datasets', f'{raw_text_file}')
             fullpath = Path(fullpath)
             if fullpath.is_dir():
@@ -295,12 +295,12 @@ def ui():
                 text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
 
             total_blocks = len(text_chunks)
-            result = f"Raw Text: ({raw_text_file}.txt) has {total_blocks} blocks (Block Size {cutoff_len} tokens)"
+            result = f"Text: ({raw_text_file}.txt) has {total_blocks} blocks (Block Size {cutoff_len} tokens)"
             del text_chunks
        
         else:
             if dataset in ['None', '']:
-                yield "Select dataset or Raw text."
+                yield "Select dataset or text file."
                 return 
 
             if format in ['None', '']:
@@ -617,7 +617,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     # == Prep the dataset, format, etc ==
     if raw_text_file not in ['None', '']:
         train_template["template_type"] = "raw_text"
-        logger.info("Loading raw text file dataset...")
+        logger.info("Loading text file...")
         fullpath = clean_path('training/datasets', f'{raw_text_file}')
         fullpath = Path(fullpath)
         if fullpath.is_dir():
