@@ -42,15 +42,15 @@ This uses it's own chunking code for raw text based on sentence splitting. This 
 
 A bunch of custom (combination) schedulers are added to the LR schedule. These are based on my own experiments
 
-FP_low_epoch_annealing
+**FP_low_epoch_annealing**
 
-Uses constant LR (with warmup) for 1 epoch only. The rest of the epoch(s) is cosine annealing. So 10 epochs - 1 will be constant 9 will be nose dive down. However a typical usage would be 2 epochs (hence low epoch in name). 1st is constant, the second is annealing. Simple.
+Uses constant LR (with warmup) for 1 epoch only. The rest of the epoch(s) is cosine annealing. So 10 epochs - 1 will be constant 9 will be nose dive down. However a typical usage would be 2 epochs (hence low epoch in name). 1st is constant, the second is annealing. Simple. I use it 90% of time.
 
-FP_half_time_annealing
+**FP_half_time_annealing**
 
 Like the low epoch, but now the total number of steps is divided by 2. First half is constant, second half is annealing. So 10 epochs - 5 will be constant, 5 will be cosine nose down.
 
-FP_raise_fall_creative
+**FP_raise_fall_creative**
 
 This is a sine raise till half of the total steps then cosine fall the rest. (Or you may think of the curve as cosine in entirety. The most learning is done in the hump, in the middle. The warmup entry has no effect, since sine is automatically warm up.
 The idea is to start very mildly as not to overfit with the first blocks of dataset. It seems to broaden the scope of the model making it less strict. (Whatever it means)
