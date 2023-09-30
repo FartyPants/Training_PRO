@@ -183,7 +183,7 @@ def ui():
                         cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
                 with gr.Row():
                     with gr.Column():
-                        check_dataset_btn = gr.Button('Load and Check Dataset and suggest data entries')    
+                        check_dataset_btn = gr.Button('Verify Dataset/Text File and suggest data entries')    
                         check_dataset_txt = gr.Textbox(label='Dataset info', value='')
 
                 with gr.Row():
