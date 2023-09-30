@@ -5,8 +5,10 @@ Maintained by FP
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q5MOB4M)
 
+Repo home:
 
-In general THIS repo is ahead of the extension included in text WebUi.
+https://github.com/FartyPants/Training_PRO
+In general THIS repo above is ahead of the extension included in text WebUi.
 
 ## News
 
@@ -14,8 +16,6 @@ Loss Graph in interface.
 
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/e389ec69-d7ad-4922-9ad9-865625997479)
 
-
-https://github.com/FartyPants/Training_PRO
 
 - Chunking: precise raw text slicer (PRTS) uses sentence slicing and making sure things are clean on all ends
 - overlap chunking - this special overlapping will make additional overlap block based on logical rules (aka no overlap block on hard cut)
