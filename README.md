@@ -3,6 +3,13 @@
 This is an expanded Training tab
 Maintained by FP
 
+In general THIS repo is ahead of the extension included in text WebUi.
+
+New:
+Loss Graph in interface. More custom Schedulers.
+![image](https://github.com/FartyPants/Training_PRO/assets/23346289/e389ec69-d7ad-4922-9ad9-865625997479)
+
+
 https://github.com/FartyPants/Training_PRO
 
 - Chunking: precise raw text slicer (PRTS) uses sentence slicing and making sure things are clean on all ends
