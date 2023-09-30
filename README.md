@@ -38,6 +38,23 @@ https://github.com/FartyPants/Training_PRO
 
 This uses it's own chunking code for raw text based on sentence splitting. This will avoid weird cuts in the chunks and each chunk should now start with sentence and end on some sentence. It works hand in hand with Hard Cut. A propper use is to structure your text into logical blocks (ideas) separated by three \n then use three \n in hard cut. This way each chunk will contain only one flow of ideas and not derail in the thoughts. And Overlapping code will create overlapped blocks on sentence basis too, but not cross hard cut, thus not cross different ideas either. Does it make any sense? No? Hmmmm...
 
+### Custom schedulers
+
+A bunch of custom (combination) schedulers are added to the LR schedule. These are based on my own experiments
+
+FP_low_epoch_annealing
+
+Uses constant LR (with warmup) for 1 epoch only. The rest of the epoch(s) is cosine annealing. So 10 epochs - 1 will be constant 9 will be nose dive down. However a typical usage would be 2 epochs (hence low epoch in name). 1st is constant, the second is annealing. Simple.
+
+FP_half_time_annealing
+
+Like the low epoch, but now the total number of steps is divided by 2. First half is constant, second half is annealing. So 10 epochs - 5 will be constant, 5 will be cosine nose down.
+
+FP_raise_fall_creative
+
+This is a sine raise till half of the total steps then cosine fall the rest. (Or you may think of the curve as cosine in entirety. The most learning is done in the hump, in the middle. The warmup entry has no effect, since sine is automatically warm up.
+The idea is to start very mildly as not to overfit with the first blocks of dataset. It seems to broaden the scope of the model making it less strict. (Whatever it means)
+
 ### Targets
 
 Normal LORA is q, v and that's what you should use. You can use (q k v o) or (q k v) and it will give you a lot more trainable parameters. The benefit is that you can keep rank lower and still attain the same coherency as q v with high rank. Guanaco has been trained with QLORA and q k v o for example and they swear by it.
