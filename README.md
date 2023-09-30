@@ -10,7 +10,8 @@ In general THIS repo is ahead of the extension included in text WebUi.
 
 ## News
 
-Loss Graph in interface. More custom Schedulers.
+Loss Graph in interface.
+
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/e389ec69-d7ad-4922-9ad9-865625997479)
 
 
