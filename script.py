@@ -109,7 +109,7 @@ def ui():
                         lora_alpha = gr.Slider(label='LoRA Alpha', value=64, minimum=0, maximum=2048, step=4, info='This divided by the rank becomes the scaling of the LoRA. Higher means stronger. A good standard value is twice your Rank.')
                         batch_size = gr.Slider(visible= False, label='Batch Size', value=0, minimum=0, maximum=1024, step=4, info='Now Replaced with Gradient accumulation. Keeping it for sake of old saved data')
                         micro_batch_size = gr.Slider(label='True Batch Size', value=4, minimum=1, maximum=128, step=1, info='Specifies how many text blocks per step will be trained. The higher value, the better the concept of training will be, but it requires more GPU memory and it reduces speed.')
-                        grad_accumulation = gr.Slider(label='Gradient Accumulation Steps', value=1, minimum=1, maximum=256, step=1, info="Virtually multiplies the Batch Size by averaging the learning over more than one step. Evens out loss fluctuations but can also degrade training fidelity.")
+                        grad_accumulation = gr.Slider(label='Gradient Accumulation Steps', value=1, minimum=1, maximum=256, step=1, info="Virtually multiplies the Batch Size by averaging the learning over more than one step. VRAM friendly. Evens out loss fluctuations but can also degrade training fidelity.")
 
                     with gr.Column():
                         stop_at_loss = gr.Slider(label='Stop at loss (Can be changed during training)', minimum=0.0, maximum=3.0, step=0.1, value=0.00, info='The process will automatically stop once the desired loss value is reached.')
@@ -843,7 +843,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                     non_serialized_params.update({"current_stability": 0})   
 
                 # Save full epochs
-                if actual_save_steps>0 and current_epoch_int > non_serialized_params['save_epochs']: 
+                if actual_save_steps>0 and current_epoch_int > non_serialized_params['save_epochs'] and state.global_step > min_steps: 
                     folder_save = f"checkpoint-{tracked.current_steps}-epoch-{current_epoch_int}" 
                     non_serialized_params.update({"save_epochs": current_epoch_int})
                     force_save = True
