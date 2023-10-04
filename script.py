@@ -21,7 +21,7 @@ import transformers
 
 from .custom_scheduler import FPSchedulerTrainer
 from .matplotgraph import create_graph
-from .train_utils import get_available_loras_local, precise_cut, sliding_block_cut
+from .train_utils import get_available_loras_local, precise_cut, sliding_block_cut, download_file_from_url
 
 from datasets import Dataset, load_dataset
 from peft import (
@@ -178,6 +178,15 @@ def ui():
                         with gr.Column():
                             hard_cut_string = gr.Textbox(label='Hard Cut String', value='\\n\\n\\n', info='String that indicates a cut between logical blocks of text (ex. Ideas or Chapters). Helps prevent unwanted overlap between unrelated ideas.')
                             min_chars = gr.Number(label='Ignore small blocks', value=0, info='Ignore Text blocks that have less or equal characters than this number.')
+                with gr.Tab(label="URL"):
+                    with gr.Row():
+                        with gr.Column():
+                            download_file_url = gr.Textbox(label='Download JSON or txt file to datasets (or formats) folder', value='',info='The URL of a file to download. If on github, make sure you get url of the raw file (https://raw.githubusercontent.com/...). If huggin face, make sure the url has /resolve/ in it not /blob/')
+                            with gr.Row():
+                                download_check_overwrite = gr.Checkbox(label='Overwrite', value=False, info='Overwrite if file exist')
+                                download_folder = gr.Radio(label="Destination", value='training/datasets', choices=['training/datasets', 'training/formats'], interactive=True)
+                            download_button = gr.Button('Download')
+                            download_status = gr.Textbox(label='Download Status', value='', interactive=False)
                 with gr.Row():
                     with gr.Column():
                         cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
@@ -192,7 +201,8 @@ def ui():
 
                 with gr.Accordion(label="Graph", open=True):
                     with gr.Row():
-                        plot_graph = gr.LinePlot(x="epoch", y="value", title="Loss Metrics", overlay_point=True, tooltip=["epoch", "value"], x_lim=[0, 1], y_lim=[0, 3.5], width=500, height=250, )
+                        # show_actions_button = False - we use old gradio
+                        plot_graph = gr.LinePlot(x="epoch", y="value", title="Loss Metrics", overlay_point=True, tooltip=["epoch", "value"], x_lim=[0, 1], y_lim=[0, 3.5], width=500, height=250) 
  
                 output = gr.Markdown(value="Ready")
 
@@ -253,8 +263,14 @@ def ui():
             print("Use during the training to save the checkpoint at any time.")
 
 
+    def update_button():
+        return gr.Button.update('[Checkpoint in Queue]', variant='stop', interactive=True)
 
-    save_chackpoint_now.click(trigger_save_checkpoint, None, None)
+    def update_button2():
+        time.sleep(1.0)
+        return gr.Button.update('Queue Checkpoint Now', variant='secondary',interactive = True)
+
+    save_chackpoint_now.click(trigger_save_checkpoint, None, None).then(update_button, None,save_chackpoint_now).then(update_button2, None,save_chackpoint_now)
 
     dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation]
 
@@ -408,6 +424,10 @@ def ui():
     sort_byTime.change(lambda x: non_serialized_params.update({"Lora_sortedByTime": x}), sort_byTime, None).then(reload_lora,None,copy_from) 
     #debug_slicer.change(lambda x: non_serialized_params.update({"debug_slicer": x}), debug_slicer, None)
 
+    def update_dataset():
+        return gr.update(choices=utils.get_datasets('training/datasets', 'json')), gr.update(choices=utils.get_datasets('training/datasets', 'txt'))
+
+    download_button.click(download_file_from_url, [download_file_url,download_check_overwrite,download_folder] , download_status).then(update_dataset,None,[dataset , raw_text_file])
 
 def do_interrupt():
     global WANT_INTERRUPT
