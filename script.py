@@ -389,8 +389,9 @@ def ui():
             result += f"\n[Batch Size: {micro_batch_size}, Epochs: {epochs}, Gradient Accumulation: {grad_accumulation}]\n"
             result += f"Total number of steps: {number_ofSteps}\n"
             result += f"Steps per each Epoch: {num_stepsPer_epoch}\n"
-            result += f"Warmup steps suggestion: {warmup_steps_suggest} (Current: {int(warmup_steps)})\n"
-            result += f"Checkpoint suggestion: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)})"
+            result += f"Suggestions:\n"
+            result += f"Checkpoints: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)}\n)"
+            result += f"Warmup steps: {warmup_steps_suggest} (Current: {int(warmup_steps)})"
             if gradient_accumulation_max < grad_accumulation: 
                 result += f"\n\nWARNING: Gradient Accumulation {grad_accumulation} is too high: It should be below {gradient_accumulation_max}"
 
@@ -812,7 +813,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         def on_step_begin(self, args: transformers.TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, **kwargs):
             tracked.current_steps = state.global_step * gradient_accumulation_steps
             tracked.max_steps = state.max_steps * gradient_accumulation_steps
-            ssteps10 = int(max(1,state.max_steps*0.1))
+            ssteps10 = int(max(2,(state.max_steps/epochs)*0.1))
 
             if WANT_INTERRUPT:
                 control.should_epoch_stop = True
