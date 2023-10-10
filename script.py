@@ -390,7 +390,7 @@ def ui():
             result += f"Total number of steps: {number_ofSteps}\n"
             result += f"Steps per each Epoch: {num_stepsPer_epoch}\n"
             result += f"Suggestions:\n"
-            result += f"Checkpoints: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)}\n)"
+            result += f"Checkpoints: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)})\n"
             result += f"Warmup steps: {warmup_steps_suggest} (Current: {int(warmup_steps)})"
             if gradient_accumulation_max < grad_accumulation: 
                 result += f"\n\nWARNING: Gradient Accumulation {grad_accumulation} is too high: It should be below {gradient_accumulation_max}"
