@@ -19,7 +19,7 @@ import pandas as pd
 import torch
 import transformers
 
-from .custom_scheduler import FPSchedulerTrainer
+from .custom_scheduler import FPSchedulerTrainer, custom_scheduler_global_update, custom_scheduler_global_setup, custom_scheduler_global_shuffle
 from .matplotgraph import create_graph
 from .train_utils import get_available_loras_local, precise_cut, sliding_block_cut, download_file_from_url
 
@@ -63,9 +63,12 @@ non_serialized_params = {
         "training_loop": False,
         "current_stability": 0,
         "save_epochs": 0,
+        "checkpoint_offset": 0,
+        "epoch_offset":0,
 }
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
+
 PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation"]
 WANT_INTERRUPT = False
 
@@ -79,6 +82,10 @@ statistics = {
 			'lr': [],
 }
 
+RED = "\033[91m"
+YELLOW = "\033[93m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
 
 def ui():
     with gr.Tab('Train LoRA', elem_id='lora-train-tab'):
@@ -145,6 +152,15 @@ def ui():
                             
                             higher_rank_limit = gr.Checkbox(label='Enable higher ranks', value=False, info='If checked, changes Rank/Alpha slider above to go much higher. This will not work without a datacenter-class GPU.')
                             report_to = gr.Radio(label="Save detailed logs with", value="None", choices=["None", "wandb", "tensorboard"], interactive=True)
+                            
+                #with gr.Accordion(label='Dynamic Scheduler', open = False):
+                #    ds_min_epochs = gr.Number(label='Minimum Epochs', value='1', info='Minimum epochs that will be always performed before ramp down can be triggered')
+                #    ds_max_epochs = gr.Number(label='Maximum Epochs (fallback)', value='50', info='Maximum Epochs before the training will bail out completely (should be a large number)')
+                #    ds_loss_trigger = gr.Slider(label='Trigger Loss', minimum=0.0, maximum=2.8, step=0.1, value=1.6, info='Loss at which the ramp down schedule will be triggered')
+                #    ds_loss_rolling_window = gr.Number(label='Loss rolling average', value='4', info='Calculate loss by averaging last x numbers to avoid jumps and noise')
+                #    ds_epochs_to_ramp = gr.Slider(label='Ramp down ratio', minimum=0.0, maximum=2.0, step=0.1, value=1.00, info='How long the ramp down will last relative to ellapsed steps (before trigger)')
+                #    gr.Markdown('These are settings for FP_dynamic_loss_trigger scheduler. The scheduler will do warm up, then hold constant untill a loss falls under Trigger Loss, then it will commence linear ramp down schedule and stop. The length of ramp down is set by Ramp down ratio where (ramp down steps) = ratio * (elapsed steps). (The time to completition shown will be very high untill ramp down is triggered.)')
+                        
 
             with gr.Column():
                 with gr.Tab(label='Formatted Dataset'):
@@ -189,7 +205,8 @@ def ui():
                             download_status = gr.Textbox(label='Download Status', value='', interactive=False)
                 with gr.Row():
                     with gr.Column():
-                        cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
+                        with gr.Row():
+                            cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
                 with gr.Row():
                     with gr.Column():
                         check_dataset_btn = gr.Button('Verify Dataset/Text File and suggest data entries')    
@@ -297,9 +314,13 @@ def ui():
 
                         logger.info(f"Loaded training file: {file_path.name}")
             else:
-                with open(clean_path('training/datasets', f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
-                    raw_text = file.read().replace('\r', '')
-        
+                try:
+                    with open(clean_path('training/datasets', f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
+                        raw_text = file.read().replace('\r', '')
+                except:
+                    yield f"{raw_text_file}.txt doesn't seem to exsist anymore... check your training/datasets folder"
+                    return
+            
  
             if min_chars<0:
                 min_chars = 0
@@ -521,7 +542,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             replace_peft_model_with_int4_lora_model
         )
         replace_peft_model_with_int4_lora_model()
-
+    
+    global train_log_graph
     global WANT_INTERRUPT
     WANT_INTERRUPT = False
 
@@ -631,7 +653,10 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     non_serialized_params.update({"training_loop": False})
     non_serialized_params.update({"current_stability": 0})
     non_serialized_params.update({"save_epochs": 0})
+    non_serialized_params.update({"checkpoint_offset": 0})
+    non_serialized_params.update({"epoch_offset": 0})
     train_log_graph.clear()
+   
 
     # END OF FPHAM SENTENCE SPLIT functions ===================     
 
@@ -751,16 +776,18 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
     # base model is now frozen and should not be reused for any other LoRA training than this one
     shared.model_dirty_from_training = True
+    print(f"Transformers Model Type: {YELLOW}{model_type}{RESET}")
+
     if training_projection==train_choices[0]:
-        model_to_lora_modules["llama"] = ["gate_proj","down_proj","up_proj","q_proj","k_proj","v_proj","o_proj"]
+        model_to_lora_modules[model_id] = ["gate_proj","down_proj","up_proj","q_proj","k_proj","v_proj","o_proj"]
     elif training_projection==train_choices[1]:
-        model_to_lora_modules["llama"] = ["q_proj","k_proj", "v_proj", "o_proj"]
+        model_to_lora_modules[model_id] = ["q_proj","k_proj", "v_proj", "o_proj"]
     elif training_projection==train_choices[2]:
-        model_to_lora_modules["llama"] = ["q_proj","k_proj", "v_proj"]
+        model_to_lora_modules[model_id] = ["q_proj","k_proj", "v_proj"]
     elif training_projection==train_choices[3]:
-        model_to_lora_modules["llama"] = ["k_proj", "v_proj", "down_proj"]        
+        model_to_lora_modules[model_id] = ["k_proj", "v_proj", "down_proj"]        
     else:
-        model_to_lora_modules["llama"] = ["q_proj", "v_proj"]            
+        model_to_lora_modules[model_id] = ["q_proj", "v_proj"]
 
 
     logger.info("Preparing for training...")
@@ -787,6 +814,32 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             logger.info("Loading existing LoRA data...")
             state_dict_peft = torch.load(f"{lora_file_path}/adapter_model.bin")
             set_peft_model_state_dict(lora_model, state_dict_peft)
+
+            print(f" + Continue Training on {RED}{lora_file_path}/adapter_model.bin{RESET}")
+            
+            #load training_log.json if exist
+           
+            if Path(f"{lora_file_path}/training_log.json").is_file():
+                with open(f"{lora_file_path}/training_log.json", 'r') as json_file:
+                    json_ilog = json.load(json_file)
+                    for key, value in json_ilog.items():
+                        if key=='current_steps':
+                            non_serialized_params.update({"checkpoint_offset": int(value+1)})
+                            print(f" + Checkpoints will be saved with offset: {RED}{non_serialized_params['checkpoint_offset']}{RESET}")
+                        if key=='epoch':
+                            non_serialized_params.update({"epoch_offset": value})
+                            print(f" + Epoch offset: {RED}{non_serialized_params['epoch_offset']}{RESET}")
+           
+
+            if Path(f"{lora_file_path}/training_graph.json").is_file():
+                try:
+                    with open(f"{lora_file_path}/training_graph.json", 'r') as json_file:
+                        train_log_graph = json.load(json_file)
+                        print(" + Training Graph loaded")   
+                except:
+                    print(f"Can't read training_graph")
+
+
     except:
         yield traceback.format_exc().replace('\n', '\n\n'), zero_pd
         return
@@ -824,14 +877,16 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
               
                 force_save = False
 
-                folder_save = f"checkpoint-{tracked.current_steps}"    
+                current_steps_offset = tracked.current_steps + non_serialized_params['checkpoint_offset']
+
+                folder_save = f"checkpoint-{current_steps_offset}"    
 
                 # save if triggered by user
                 if non_serialized_params['save_checkpoint_now']:
                     force_save = True
                     non_serialized_params.update({"save_checkpoint_now": False})
                     print(f"\033[1;31;1mSave Checkpoint manually trigerred.\033[0;37;0m")
-                    folder_save = f"checkpoint-{tracked.current_steps}-user"  
+                    folder_save = f"checkpoint-{current_steps_offset}-user"  
 
                 patience = 3     # Set the number of consecutive steps for tracking stability
                 
@@ -855,7 +910,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                         new_save = (current_loss_dec-0.1) + 0.01
                         non_serialized_params.update({"save_steps_under_loss": new_save})
 
-                        folder_save = f"checkpoint-{tracked.current_steps}-loss-{loss_str}" 
+                        folder_save = f"checkpoint-{current_steps_offset}-loss-{loss_str}" 
                         force_save = True   
 
                    
@@ -865,13 +920,23 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
                 # Save full epochs
                 if actual_save_steps>0 and current_epoch_int > non_serialized_params['save_epochs'] and state.global_step > min_steps: 
-                    folder_save = f"checkpoint-{tracked.current_steps}-epoch-{current_epoch_int}" 
+
+                    
+                    current_epoch_offset = current_epoch_int
+                    
+                    if non_serialized_params['epoch_offset'] > 0:
+                        current_epoch_offset = current_epoch_int + round(non_serialized_params['epoch_offset'], 2)
+                    
+                    ep_off_str = f"{current_epoch_offset}"
+                    ep_off_str = ep_off_str.replace('.', '_')
+                    folder_save = f"checkpoint-{current_steps_offset}-epoch-{ep_off_str}" 
+
                     non_serialized_params.update({"save_epochs": current_epoch_int})
                     force_save = True
 
                 # save each actual_save_steps
                 if state.global_step > 0 and actual_save_steps > 0 and state.global_step % actual_save_steps == 0:
-                    folder_save = f"checkpoint-{tracked.current_steps}"  
+                    folder_save = f"checkpoint-{current_steps_offset}"  
                     force_save = True   
 
                 if force_save:       
@@ -893,18 +958,30 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
         def on_log(self, args: transformers.TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, logs, **kwargs):
             train_log.update(logs)
+
+            current_steps_offset = tracked.current_steps + non_serialized_params['checkpoint_offset']
+            current_epoch_offset = train_log.get('epoch', 0.0) + non_serialized_params['epoch_offset']
+
             train_log.update({"current_steps": tracked.current_steps})
+            train_log.update({"current_steps_adjusted": current_steps_offset})
+            train_log.update({"epoch_adjusted": current_epoch_offset})
+
             if WANT_INTERRUPT:
                 print("\033[1;31;1mInterrupted by user\033[0;37;0m")
 
-            print(f"\033[1;30;40mStep: {tracked.current_steps:6} \033[0;37;0m", end='')
+            if non_serialized_params['checkpoint_offset']>0:
+                print(f"\033[1;30;40mStep: {tracked.current_steps:6} [+{non_serialized_params['checkpoint_offset']}] \033[0;37;0m", end='')
+            else:
+                print(f"\033[1;30;40mStep: {tracked.current_steps:6} \033[0;37;0m", end='')
             
-            entry = {
-                'current_steps': int(train_log.get('current_steps',0)),
+            graphentry = {
+                'current_steps': int(train_log.get('current_steps_adjusted',0)),
                 'loss': float(train_log.get('loss', 0.0)),
                 'learning_rate': float(train_log.get('learning_rate', 0.0)),
-                'epoch': float(train_log.get('epoch', 0.0))
+                'epoch': float(train_log.get('epoch_adjusted', 0.0))
             }
+
+            custom_scheduler_global_update(float(train_log.get('loss', 0.000)))
             cur_loss = float(train_log.get('loss', 0.0))
             cur_lr = float(train_log.get('learning_rate', 0.0))
             cur_epoch = float(train_log.get('epoch', 0.0))
@@ -920,7 +997,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             statistics['lr'].append({'epoch': cur_epoch, 'value': cur_lr})
 
             # Add the entry to the continuous log
-            train_log_graph.append(entry)
+            train_log_graph.append(graphentry)
 
             # Save the graph log for now, we can later generate full graph
             with open(f"{lora_file_path}/training_graph.json", 'w') as file:
@@ -931,22 +1008,22 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 if loss <= stop_at_loss:
                     control.should_epoch_stop = True
                     control.should_training_stop = True
-                    print(f"\033[1;31;1mStop Loss {stop_at_loss} reached.\033[0;37;0m")
+                    print(f"{RED}Stop Loss {stop_at_loss} reached.{RESET}")
 
     # FPHAM SAMPLE REQ Transformers error handling
     gradient_accumulation_max = int(train_data.num_rows)//micro_batch_size
     
     if gradient_accumulation_max < gradient_accumulation_steps:
-        print(f"\033[1;31;1mWARNING: Current gradient accumulation is too high for the amount of training data.\033[0;37;0m")
-        print(f"Gradient accumulation: {gradient_accumulation_steps} should be less than: {gradient_accumulation_max}. \033[1;31;1mThis could crash Accelerate/Transformers\033[0;37;0m")
+        print(f"{RED}WARNING:{RESET} Current gradient accumulation is {RED}too high{RESET} for the amount of training data.")
+        print(f"Gradient accumulation: {gradient_accumulation_steps} should be less than: {gradient_accumulation_max}. {RED}This could crash Accelerate/Transformers{RESET}")
         #min_batchSize = sample_req*micro_batch_size
-        print(f"Preferable fix: \033[1;31;1mIncrease the size of dataset\033[0;37;0m")
-        print(f"... or Decrerase Gradient Accumulation \033[1;31;1m{gradient_accumulation_steps}\033[0;37;0m to below {gradient_accumulation_max}")
+        print(f"Preferable fix: {RED}Increase the size of dataset{RESET}")
+        print(f"... or Decrerase Gradient Accumulation {RED}{gradient_accumulation_steps}{RESET} to below {GREEN}{gradient_accumulation_max}{RESET}")
         gradient_accumulation_steps = max(1,gradient_accumulation_max-1)
-        print(f"Last resort fix for this run: Lowering Gradient accumulation to {gradient_accumulation_steps}. [Good luck]")
+        print(f"Last resort fix for this run: Lowering Gradient accumulation to {GREEN}{gradient_accumulation_steps}{RESET} [Good luck]")
 
     else:
-        print(f"Data Size Check: Gradient accumulation: {gradient_accumulation_steps} <= Blocks/Batch {gradient_accumulation_max} ... [OK]")
+        print(f"Data Size Check: Gradient accumulation: {YELLOW}{gradient_accumulation_steps}{RESET} <= Blocks/Batch {gradient_accumulation_max} ... {GREEN}[OK]{RESET}")
 
     #END OF FPHAM SAMPLE REQ
 
@@ -1030,19 +1107,28 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
     projections_string = ", ".join([projection.replace("_proj", "") for projection in model_to_lora_modules[model_id]])
 
-    print(f"Training '{model_id}' model using ({projections_string}) projections")
+    print(f"Training '{model_id}' model using {YELLOW}({projections_string}){RESET} projections")
 
     if lora_all_param > 0:
-        print(f"Trainable params: {lora_trainable_param:,d} ({100 * lora_trainable_param / lora_all_param:.4f} %), All params: {lora_all_param:,d} (Model: {model_all_params:,d})")
+        print(f"Trainable params: {lora_trainable_param:,d} ({RED}{100 * lora_trainable_param / lora_all_param:.4f} %{RESET}), All params: {lora_all_param:,d} (Model: {model_all_params:,d})")
 
     train_log.update({"base_model_name": shared.model_name})
     train_log.update({"base_model_class": shared.model.__class__.__name__})
     train_log.update({"base_loaded_in_4bit": getattr(lora_model, "is_loaded_in_4bit", False)})
     train_log.update({"base_loaded_in_8bit": getattr(lora_model, "is_loaded_in_8bit", False)})
     train_log.update({"projections": projections_string})
+    if non_serialized_params['checkpoint_offset'] > 0:
+        train_log.update({"last_run_steps_offset": non_serialized_params['checkpoint_offset']})
+        train_log.update({"last_run_epoch_offset": non_serialized_params['epoch_offset']})
+
+
+    if non_serialized_params['checkpoint_offset'] > 0:
+        print(f"Continue training on {RED}previous adapter{RESET} from epoch: {RED}{non_serialized_params['epoch_offset']}{RESET}")
 
     if stop_at_loss > 0:
-        print(f"Monitoring loss \033[1;31;1m(Auto-Stop at: {stop_at_loss})\033[0;37;0m")
+        print(f"Monitoring loss {RED}(Auto-Stop at: {stop_at_loss}){RESET}")
+
+    
 
     if WANT_INTERRUPT:
         yield "Interrupted before start.", zero_pd
@@ -1132,7 +1218,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
             if stop_at_loss != non_serialized_params['stop_at_loss']:
                 stop_at_loss = non_serialized_params['stop_at_loss']
-                print(f"Stop at loss changed \033[1;31;1m(Auto-Stop at: {stop_at_loss})\033[0;37;0m")
+                print(f"Stop at loss changed {RED}(Auto-Stop at: {stop_at_loss}){RESET}")
             
             losses = gr.LinePlot.update(
 				value = pd.DataFrame(statistics['loss']),
