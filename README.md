@@ -13,6 +13,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
+- NEFtune: add noise to help with generalization
 - Loss Graph in interface.
 - Supports Mistral training
 
