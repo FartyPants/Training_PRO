@@ -49,6 +49,63 @@ from modules.models import reload_model
 from modules.utils import natural_keys
 
 
+
+## just temporary to avoid warning
+
+import inspect
+
+from typing import Callable, Optional, Tuple, ContextManager
+
+
+
+if hasattr(torch.utils.checkpoint, 'noop_context_fn'):
+    def my_checkpoint(
+        function,
+        *args,
+        use_reentrant: Optional[bool] = None,
+        context_fn: Callable[[], Tuple[ContextManager, ContextManager]] = torch.utils.checkpoint.noop_context_fn,
+        determinism_check: str = torch.utils.checkpoint._DEFAULT_DETERMINISM_MODE,
+        debug: bool = False,
+        **kwargs
+    ):
+
+        if use_reentrant is None:
+            #print ("reentran = NONE")
+            use_reentrant = True
+        # Hack to mix *args with **kwargs in a python 2.7-compliant way
+        preserve = kwargs.pop("preserve_rng_state", True)
+        if kwargs and use_reentrant:
+            raise ValueError(
+                "Unexpected keyword arguments: " + ",".join(arg for arg in kwargs)
+            )
+
+        if use_reentrant:
+            if context_fn is not torch.utils.checkpoint.noop_context_fn or debug is not False:
+                raise ValueError(
+                    "Passing `context_fn` or `debug` is only supported when "
+                    "use_reentrant=False."
+                )
+            return torch.utils.checkpoint.CheckpointFunction.apply(function, preserve, *args)
+        else:
+
+            print ("reentran = FALSE")
+            gen = torch.utils.checkpoint._checkpoint_without_reentrant_generator(
+                function, preserve, context_fn, determinism_check, debug, *args, **kwargs
+            )
+            # Runs pre-forward logic
+            next(gen)
+            ret = function(*args, **kwargs)
+            # Runs post-forward logic
+            try:
+                next(gen)
+            except StopIteration:
+                return ret
+
+
+# Replace the torch.utils.checkpoint.checkpoint with your custom version
+#torch.utils.checkpoint.checkpoint = my_checkpoint
+
+
 params = {
         "display_name": "Training PRO",
         "is_tab": True
@@ -88,6 +145,7 @@ GREEN = "\033[92m"
 RESET = "\033[0m"
 
 def ui():
+
     with gr.Tab('Train LoRA', elem_id='lora-train-tab'):
         tmp = gr.State('')
         with gr.Row():
@@ -249,7 +307,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation,neft_noise_alpha]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -457,12 +515,16 @@ def do_interrupt():
 
 
 def do_copy_params(lora_name: str, *args):
-    f_name = f"{shared.args.lora_dir}/{clean_path(None, lora_name)}/training_parameters.json"
-    if Path(f_name).is_file():
-        with open(f_name, 'r', encoding='utf-8') as format_file:
-            params: dict[str, str] = json.load(format_file)
+
+    if lora_name:
+        f_name = f"{shared.args.lora_dir}/{clean_path(None, lora_name)}/training_parameters.json"
+        if Path(f_name).is_file():
+            with open(f_name, 'r', encoding='utf-8') as format_file:
+                params: dict[str, str] = json.load(format_file)
+        else:
+            params = {}
     else:
-        params = {}
+        params = {}        
 
     result = list()
     for i in range(0, len(PARAMETERS)):
@@ -657,6 +719,20 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     non_serialized_params.update({"epoch_offset": 0})
     train_log_graph.clear()
    
+    if hasattr(torch.utils.checkpoint, 'noop_context_fn'):
+        print("Testing Pytorch...")
+        old_checkpoint_signature = inspect.signature(torch.utils.checkpoint.checkpoint)
+
+        # Get the signature of your new checkpoint function
+        my_checkpoint_signature = inspect.signature(my_checkpoint)
+
+        # Check if the signatures match
+        if old_checkpoint_signature.parameters == my_checkpoint_signature.parameters:
+            print(F"{RED}Overriding Torch checkpoint function to avoid repeated 'use_reentrant not explicitly set' warnings{RESET}")
+            #print(" - Note: Transformers need to pass use_reentrant in llama.modeling_llama in def forward,  layer_outputs = torch.utils.checkpoint.checkpoint")
+            #print("         Once they do, this function can be removed")
+            torch.utils.checkpoint.checkpoint = my_checkpoint
+    
 
     # END OF FPHAM SENTENCE SPLIT functions ===================     
 
@@ -772,6 +848,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     # == Start prepping the model itself ==
     if not hasattr(shared.model, 'lm_head') or hasattr(shared.model.lm_head, 'weight'):
         logger.info("Getting model ready...")
+        # here we can disable gradient checkpoint, by default = true,  use_gradient_checkpointing=True
         prepare_model_for_kbit_training(shared.model)
 
     # base model is now frozen and should not be reused for any other LoRA training than this one
@@ -1040,6 +1117,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     elif lr_scheduler_type =='FP_raise_fall_creative':
         custom_scheduller = True
         lr_scheduler_type_arg = 'constant_with_warmup'
+    
+    #gradient_checkpointing=True
     
     args=transformers.TrainingArguments(
             report_to=report_to if report_to != "None" else None,

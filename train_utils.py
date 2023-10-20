@@ -20,6 +20,7 @@ def list_subfoldersByTime(directory):
     if not directory.endswith('/'):
         directory += '/'
     subfolders = []
+    subfolders.append('None') 
     path = directory
     name_list = os.listdir(path)
     full_list = [os.path.join(path,i) for i in name_list]
