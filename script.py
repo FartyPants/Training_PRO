@@ -151,7 +151,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 23.09.30` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 23.10.20` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -719,6 +719,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     non_serialized_params.update({"epoch_offset": 0})
     train_log_graph.clear()
    
+    # === once fixed, this can be removed ==============================
     if hasattr(torch.utils.checkpoint, 'noop_context_fn'):
         print("Testing Pytorch...")
         old_checkpoint_signature = inspect.signature(torch.utils.checkpoint.checkpoint)
