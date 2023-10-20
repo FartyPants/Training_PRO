@@ -5,6 +5,16 @@ import requests
 import tqdm
 import json
 
+'''
+def get_gpu_memory_usage(rank):
+    return {
+        'total': round(torch.cuda.get_device_properties(rank).total_memory / (1024**3), 2),
+        'max': round(torch.cuda.max_memory_allocated(rank) / (1024**3), 2),
+        'reserved': round(torch.cuda.memory_reserved(rank) / (1024**3), 2),
+        'allocated': round(torch.cuda.memory_allocated(rank) / (1024**3), 2)
+    }
+'''
+
 def list_subfoldersByTime(directory):
 
     if not directory.endswith('/'):
