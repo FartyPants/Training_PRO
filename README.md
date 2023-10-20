@@ -16,6 +16,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 - NEFtune: add noise to help with generalization
 - Loss Graph in interface.
 - Supports Mistral training
+- some roundabout around pytorch and transformers version desync
 
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/e389ec69-d7ad-4922-9ad9-865625997479)
 
