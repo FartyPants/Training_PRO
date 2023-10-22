@@ -20,10 +20,7 @@ custom_scheduler_params = {'trigger_loss': 0.0, 'ramp_down_ratio':1.0, 'current_
 
 def custom_scheduler_global_update(current_loss: float):
     custom_scheduler_params.update({'current_loss': current_loss})
-    
-def custom_scheduler_global_shuffle(shuffle: bool):
-    custom_scheduler_params.update({'dataloader_shuffle': shuffle})
-
+  
 def custom_scheduler_global_setup(trigger_loss: float, ramp_down_ratio: float):
     custom_scheduler_params.update({'trigger_loss': trigger_loss})
     custom_scheduler_params.update({'ramp_down_ratio': ramp_down_ratio})
