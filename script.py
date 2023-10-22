@@ -19,7 +19,10 @@ import pandas as pd
 import torch
 import transformers
 
-from .custom_scheduler import FPSchedulerTrainer, FPNEFtuneTrainer, custom_scheduler_global_update, custom_scheduler_global_setup, custom_scheduler_global_shuffle
+from functools import partial
+
+from .custom_scheduler import FPSchedulerTrainer, FPNEFtuneTrainer
+
 from .matplotgraph import create_graph
 from .train_utils import get_available_loras_local, precise_cut, sliding_block_cut, download_file_from_url
 
@@ -100,10 +103,6 @@ if hasattr(torch.utils.checkpoint, 'noop_context_fn'):
                 next(gen)
             except StopIteration:
                 return ret
-
-
-# Replace the torch.utils.checkpoint.checkpoint with your custom version
-#torch.utils.checkpoint.checkpoint = my_checkpoint
 
 
 params = {
@@ -317,7 +316,8 @@ def ui():
 
         return grad_accumulation_val
 
-    copy_from.change(do_copy_params, [copy_from] + all_params, all_params).then(fix_old_version,[batch_size,micro_batch_size, grad_accumulation],grad_accumulation)
+    
+    copy_from.change(partial(do_copy_params, all_params= all_params), copy_from, all_params).then(fix_old_version,[batch_size,micro_batch_size, grad_accumulation],grad_accumulation)
     start_button.click(do_train, all_params, [output,plot_graph])
     stop_button.click(do_interrupt, None, None, queue=False)
     higher_rank_limit.change(change_rank_limit, [higher_rank_limit], [lora_rank, lora_alpha])
@@ -521,7 +521,7 @@ def do_interrupt():
     WANT_INTERRUPT = True
 
 
-def do_copy_params(lora_name: str, *args):
+def do_copy_params(lora_name: str, all_params):
 
     if lora_name:
         f_name = f"{shared.args.lora_dir}/{clean_path(None, lora_name)}/training_parameters.json"
@@ -539,7 +539,7 @@ def do_copy_params(lora_name: str, *args):
         if key in params:
             result.append(params[key])
         else:
-            result.append(args[i])
+            result.append(all_params[i])
 
     return result
 
@@ -1066,7 +1066,6 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 'epoch': float(train_log.get('epoch_adjusted', 0.0))
             }
 
-            custom_scheduler_global_update(float(train_log.get('loss', 0.000)))
             cur_loss = float(train_log.get('loss', 0.0))
             cur_lr = float(train_log.get('learning_rate', 0.0))
             cur_epoch = float(train_log.get('epoch', 0.0))
