@@ -125,7 +125,7 @@ non_serialized_params = {
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -206,7 +206,7 @@ def ui():
                             add_bos_token = gr.Checkbox(label='Add BOS token', value=True, info="Adds BOS token for each dataset item")
                             add_eos_token = gr.Checkbox(label='Add EOS token', value=False, info="Adds EOS token for each dataset item")
                             add_eos_token_type = gr.Dropdown(label='EOS placement (Text file)', choices=['Every Block', 'Hard Cut Blocks Only'], value='Every Block', info='', allow_custom_value = False)
-                            
+                            group_by_length = gr.Checkbox(label='Group Samples by Length', value=False, info='Group together samples of roughly the same length in the training dataset.')
                             higher_rank_limit = gr.Checkbox(label='Enable higher ranks', value=False, info='If checked, changes Rank/Alpha slider above to go much higher. This will not work without a datacenter-class GPU.')
                             report_to = gr.Radio(label="Save detailed logs with", value="None", choices=["None", "wandb", "tensorboard"], interactive=True)
                 # for future            
@@ -224,12 +224,11 @@ def ui():
                     with gr.Row():
                         with gr.Column():
                             with gr.Row():
-                                dataset = gr.Dropdown(choices=get_datasets('training/datasets', 'json'), value='None', label='Dataset', info='The dataset file to use for training.', elem_classes=['slim-dropdown'])
+                                dataset = gr.Dropdown(choices=get_datasets('training/datasets', 'json'), value='None', label='Dataset', info='The dataset file to use for training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
                                 create_refresh_button(dataset, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'json')}, 'refresh-button')
                             with gr.Row():
-                                eval_dataset = gr.Dropdown(choices=get_datasets('training/datasets', 'json'), value='None', label='Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', elem_classes=['slim-dropdown'])
+                                eval_dataset = gr.Dropdown(choices=get_datasets('training/datasets', 'json'), value='None', label='Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
                                 create_refresh_button(eval_dataset, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'json')}, 'refresh-button')
-
                         with gr.Column():
                             with gr.Row():
                                 format = gr.Dropdown(choices=get_datasets('training/formats', 'json'), value='None', label='Data Format', info='The format file used to decide how to format the dataset input.', elem_classes=['slim-dropdown'])
@@ -239,7 +238,7 @@ def ui():
 
                 with gr.Tab(label="Text file"):
                     with gr.Row():
-                        raw_text_file = gr.Dropdown(choices=get_datasets('training/datasets', 'txt'), value='None', label='Text file', info='The text file to use for training.', elem_classes=['slim-dropdown'])
+                        raw_text_file = gr.Dropdown(choices=get_datasets('training/datasets', 'txt'), value='None', label='Text file', info='The text file to use for training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
                         create_refresh_button(raw_text_file, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'txt')}, 'refresh-button')
 
                     with gr.Row():
@@ -260,10 +259,18 @@ def ui():
                                 download_folder = gr.Radio(label="Destination", value='training/datasets', choices=['training/datasets', 'training/formats'], interactive=True)
                             download_button = gr.Button('Download')
                             download_status = gr.Textbox(label='Download Status', value='', interactive=False)
+                with gr.Tab(label="Tools"):
+                    with gr.Row():
+                        with gr.Column():
+                            split_dataset_perc = gr.Number(label='Evaluation dataset split (percentage)', value=10, info='Splits JSON dataset into _train and _eval files by the split percentage. Make sure the JSON is selected in the Formatted Dataset tab first.')
+                            split_dataset_do = gr.Button('Split dataset')
+                        with gr.Column():    
+                            gr.Markdown('')
+
                 with gr.Row():
                     with gr.Column():
                         with gr.Row():
-                            cutoff_len = gr.Slider(label='Chunk Length (Cutoff Length)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
+                            cutoff_len = gr.Slider(label='Maximum context length (Cutoff)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
                 with gr.Row():
                     with gr.Column():
                         check_dataset_btn = gr.Button('Verify Dataset/Text File and suggest data entries')    
@@ -306,7 +313,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -509,6 +516,75 @@ def ui():
 
     download_button.click(download_file_from_url, [download_file_url,download_check_overwrite,download_folder] , download_status).then(update_dataset,None,[dataset , raw_text_file])
 
+    def update_datasetJSON():
+        return gr.update(choices=get_datasets('training/datasets', 'json')), gr.update(choices=get_datasets('training/datasets', 'json'))
+
+
+    def split_dataset(dataset, split_dataset_perc):
+
+        if dataset == 'None' or dataset == '':
+            print("No dataset selected in Formatted Datasets")
+            return
+        
+        # Load the original JSON data
+        logger.info("Splitting JSON datasets 90/10...")
+
+        dataset_json_new = f'{dataset}_train.json'
+        eval_json_new = f'{dataset}_eval.json'
+       
+        dataset_json = f'{dataset}.json'
+       
+
+        with open(clean_path('training/datasets', dataset_json), 'r', encoding='utf-8-sig') as f:
+            data = json.load(f)
+
+        # Define the split ratio (e.g., 80% for training, 20% for evaluation)
+        split_ratio = 1.0 - float(split_dataset_perc)/100.0
+        total_samples = len(data)
+        split_index = int(total_samples * split_ratio)
+        print(f" + training: {split_index} blocks")
+        print(f" + eval: {total_samples - split_index} blocks")
+        # Shuffle the data to ensure randomness
+        random.shuffle(data)
+
+        # Split the data into training and evaluation sets
+
+        train_data = data[:split_index]
+        eval_data = data[split_index:]
+
+        # Save the training data to a new JSON file
+        with open(clean_path('training/datasets', dataset_json_new), 'w', encoding='utf-8') as f:
+            json.dump(train_data, f, indent=2)
+
+        # Save the evaluation data to a new JSON file
+        with open(clean_path('training/datasets', eval_json_new), 'w', encoding='utf-8') as f:
+            json.dump(eval_data, f, indent=2)    
+
+
+    def select_dataset(dataset):
+        dataset_json_new = f'{dataset}_train.json'
+        eval_json_new = f'{dataset}_eval.json'
+        path1 = clean_path('training/datasets', dataset_json_new)
+        path2 = clean_path('training/datasets', eval_json_new)
+        returnA = 'None'
+        returnB = 'None'
+
+        if Path(path1).is_file():
+           print(f"{dataset_json_new} file selected for training")
+           returnA = dataset_json_new.replace('.json', '')
+
+        if Path(path2).is_file():
+           print(f"{eval_json_new} file selected for evaluation")
+           returnB = eval_json_new.replace('.json', '')
+
+        
+        return returnA, returnB
+
+
+
+    split_dataset_do.click(split_dataset,[dataset,split_dataset_perc],None).then(update_datasetJSON, None,[dataset, eval_dataset]).then(select_dataset, dataset,[dataset,eval_dataset])
+
+
 def get_datasets(path: str, ext: str):
     # include subdirectories for raw txt files to allow training from a subdirectory of txt files
     #if ext == "txt":
@@ -604,7 +680,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -819,18 +895,23 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             prompt = generate_prompt(data_point)
             return tokenize(prompt, add_eos_token, add_bos_token)
 
-        logger.info("Loading JSON datasets...")
-        data = load_dataset("json", data_files=clean_path('training/datasets', f'{dataset}.json'))
+        dataset_json = f'{dataset}.json'
+        eval_json = f'{eval_dataset}.json'
+
+        logger.info("Loading JSON training dataset...")
+        data = load_dataset("json", data_files=clean_path('training/datasets', dataset_json))
         train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
+
+        if eval_dataset == 'None' or eval_dataset == '':
+            eval_data = None
+        else:
+            logger.info("Loading JSON eval dataset...")
+            eval_data = load_dataset("json", data_files=clean_path('training/datasets', eval_json))
+            eval_data = eval_data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
         print(f"BOS: {add_bos_token} EOS: {add_eos_token}") 
         print(f"Data Blocks: {train_data.num_rows}")
 
-        if eval_dataset == 'None':
-            eval_data = None
-        else:
-            eval_data = load_dataset("json", data_files=clean_path('training/datasets', f'{eval_dataset}.json'))
-            eval_data = eval_data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
     # == We MUST reload model if it went through any previous training, even failed one ==
     if shared.model_dirty_from_training:
@@ -1089,7 +1170,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
             if 'loss' in logs:
                 loss = float(logs['loss'])
-                if loss <= stop_at_loss:
+                if loss <= stop_at_loss and stop_at_loss > 0:
                     control.should_epoch_stop = True
                     control.should_training_stop = True
                     print(f"{RED}Stop Loss {stop_at_loss} reached.{RESET}")
@@ -1126,6 +1207,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         lr_scheduler_type_arg = 'constant_with_warmup'
     
     #gradient_checkpointing=True
+    #group_by_length 
     
     args=transformers.TrainingArguments(
             report_to=report_to if report_to != "None" else None,
@@ -1143,10 +1225,10 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             save_strategy="steps" if eval_data is not None else "no",
             output_dir=lora_file_path,
             lr_scheduler_type=lr_scheduler_type_arg,
-            load_best_model_at_end=eval_data is not None,
-            # TODO: Enable multi-device support
+            load_best_model_at_end=False,
             ddp_find_unused_parameters=None,
             no_cuda=shared.args.cpu,
+            group_by_length = group_by_length,
         )
 
     if custom_scheduller:
