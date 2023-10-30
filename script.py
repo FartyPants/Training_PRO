@@ -363,6 +363,8 @@ def ui():
             yield "Tokenizer is not available. Please Load some Model first."
             return
         
+
+        max_length_tokens = 0
         
         if raw_text_file not in ['None', '']:
             logger.info("Loading Text file...")
@@ -396,8 +398,23 @@ def ui():
             else:
                 text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
 
+
             total_blocks = len(text_chunks)
+
+            max_length = 0
+            max_text = ''
+            for example in text_chunks:
+                if len(example) > max_length:
+                    max_length = len(example)
+                    max_text = example
+
+            input_ids = shared.tokenizer.encode(max_text, truncation=True, max_length=8192)
+            
             result = f"Text: ({raw_text_file}.txt) has {total_blocks} blocks (Block Size {cutoff_len} tokens)"
+            result += f"\nLongest Block: {len(input_ids)+1} tokens with cutoff {cutoff_len}"
+            #no suggestion for plaintext as it is set by cutoff_len anyway
+            max_length_tokens = 0
+
             del text_chunks
        
         else:
@@ -423,7 +440,7 @@ def ui():
 
             def tokenize_dummy(prompt):
 
-                input_ids = shared.tokenizer.encode(prompt, truncation=True, max_length=cutoff_len)
+                input_ids = shared.tokenizer.encode(prompt, truncation=True, max_length=8192)
                 labels = [1] * len(input_ids)
                 input_ids = torch.tensor(input_ids)
                 return {
@@ -451,7 +468,21 @@ def ui():
             train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
             total_blocks = train_data.num_rows
 
+            max_length = 0
+            second_max_length = 0
+
+            for example in train_data:
+                length = len(example['input_ids'])    
+                if length > max_length:
+                    second_max_length = max_length
+                    max_length = length
+                elif length > second_max_length:
+                    second_max_length = length
+
+            max_length_tokens = max_length
+
             result = f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len} tokens\n(Keys: {data_keys} - Format: {format}.json): "
+            result += f"\nLongest Block: {max_length_tokens} tokens. Second Longest Block: {second_max_length} tokens."
 
             #for options, data in format_data.items():
             #    format_keys = options.split(',')
@@ -476,6 +507,11 @@ def ui():
             result += f"Total number of steps: {number_ofSteps}\n"
             result += f"Steps per each Epoch: {num_stepsPer_epoch}\n"
             result += f"Suggestions:\n"
+            
+            if max_length_tokens>0:
+                next_max_multiple = ((max_length_tokens + 31) // 32) * 32
+                result += f"Maximum context length: {next_max_multiple} (Current: {cutoff_len})\n"
+
             result += f"Checkpoints: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)})\n"
             result += f"Warmup steps: {warmup_steps_suggest} (Current: {int(warmup_steps)})"
             if gradient_accumulation_max < grad_accumulation: 
