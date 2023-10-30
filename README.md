@@ -13,7 +13,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
-- fixes, plus counts max block in Verify Dataset (helps to set correct Cutoff)
+- fixes, plus counts max block in Verify Dataset (helps to set correct Cutoff), group samples by length
 - NEFtune: add noise to help with generalization
 - Loss Graph in interface.
 - Supports Mistral training
