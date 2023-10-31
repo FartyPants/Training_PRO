@@ -108,3 +108,4 @@ Elimninate cutoff blocks option will simply not use such block at all. No block 
 
 This options apply only to JSON dataset for obvious reasons.
 
+Also watch the terminal window to see how many blocks you had elimitnated - if it is too many, then you need to increase Maximum context length (Cutoff).
