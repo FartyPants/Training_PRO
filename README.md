@@ -14,7 +14,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 ## News
 
 - Suggestions for Maximum Context length (Measures the longest block in tokens)
-- Eliminate the cutoff blocks - instead of trimming block if it is above cutoff it will eliminate the block all together. 
+- Eliminate cutoff blocks - instead of trimming block if it is above cutoff it will eliminate the block all together. 
 - fixes, plus counts max block in Verify Dataset (helps to set correct Cutoff), group samples by length
 - NEFtune: add noise to help with generalization
 - Loss Graph in interface.
