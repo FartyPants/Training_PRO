@@ -125,7 +125,7 @@ non_serialized_params = {
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -150,7 +150,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 27.10.20` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 31.10.20` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -207,6 +207,7 @@ def ui():
                             add_eos_token = gr.Checkbox(label='Add EOS token', value=False, info="Adds EOS token for each dataset item")
                             add_eos_token_type = gr.Dropdown(label='EOS placement (Text file)', choices=['Every Block', 'Hard Cut Blocks Only'], value='Every Block', info='', allow_custom_value = False)
                             group_by_length = gr.Checkbox(label='Group Samples by Length', value=False, info='Group together samples of roughly the same length in the training dataset.')
+                            eliminate_long_blocks = gr.Checkbox(label='Eliminate cutoff blocks', value=False, info='Instead of just trimming blocks at cutoff, eliminate them from dataset alltogether if they are too long.')
                             higher_rank_limit = gr.Checkbox(label='Enable higher ranks', value=False, info='If checked, changes Rank/Alpha slider above to go much higher. This will not work without a datacenter-class GPU.')
                             report_to = gr.Radio(label="Save detailed logs with", value="None", choices=["None", "wandb", "tensorboard"], interactive=True)
                 # for future            
@@ -313,7 +314,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -716,7 +717,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -938,6 +939,22 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         data = load_dataset("json", data_files=clean_path('training/datasets', dataset_json))
         train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
+
+        if eliminate_long_blocks:
+
+            num_items_before = len(train_data)
+            print(f"Filtering {num_items_before} blocks for elimination")
+            filtered_train_data = []
+            for example in train_data:
+                
+                if len(example['input_ids']) > 0:
+                    if example['input_ids'][0] == shared.tokenizer.pad_token_id:
+                        filtered_train_data.append(example)
+         
+            train_data = Dataset.from_list(filtered_train_data)
+            num_items_after = len(train_data)
+            print(f" - Eliminated Data Blocks above {cutoff_len} tokens: {num_items_before - num_items_after}")
+
         if eval_dataset == 'None' or eval_dataset == '':
             eval_data = None
         else:
@@ -946,7 +963,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             eval_data = eval_data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
         print(f"BOS: {add_bos_token} EOS: {add_eos_token}") 
-        print(f"Data Blocks: {train_data.num_rows}")
+        print(f"Data Blocks: {len(train_data)}")
 
 
     # == We MUST reload model if it went through any previous training, even failed one ==
