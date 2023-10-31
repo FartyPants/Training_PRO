@@ -109,3 +109,10 @@ Elimninate cutoff blocks option will simply not use such block at all. No block 
 This options apply only to JSON dataset for obvious reasons.
 
 Also watch the terminal window to see how many blocks you had elimitnated - if it is too many, then you need to increase Maximum context length (Cutoff).
+
+### Group Samples by Length
+
+Makes the training more efficient as it will group blocks with simillar size into one batch. The effect can be also observed on the loss graph, because the loss will became oscillating. THis is due to the fact that different block lengths have different loss and when grouped the effect is more visible. 
+
+![image](https://github.com/FartyPants/Training_PRO/assets/23346289/57acfb4c-085a-4d0c-a801-faa11832d413)
+
