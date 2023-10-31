@@ -13,6 +13,8 @@ In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
+- Suggestions for Maximum Context length (Measures the longest block in tokens)
+- Eliminate the cutoff blocks - instead of trimming block if it is above cutoff it will eliminate the block all together. 
 - fixes, plus counts max block in Verify Dataset (helps to set correct Cutoff), group samples by length
 - NEFtune: add noise to help with generalization
 - Loss Graph in interface.
@@ -91,3 +93,13 @@ I would suggest a series of experiment where you would put batch size as high as
 High Batch Size vs High GA would also likely produce different results in terms of learning  words vs style. How? Hmmmm... good question.
 
 One optical "benefit" of GA is that the loss will fluctuate less (because of all the gradient accumulation, which works as a form of noise smoothing as well).
+
+### Eliminating bad blocks
+
+If you use JSON and a block is longer than Maximum context length (Cutoff) by default it will be trimmed to the Maximum context length (Cutoff). That's the default behavior. While it may work on some cases where the end of the block is not much more important than the beginning, in some other cases this may create a really ugly block. Imagine a labeling system of an input text where you train it on USER: ... some long text... ASSISTANT: Movie script
+In such case trimming the block will probably cutoff the entire answer thus making the block useless. Not only that, also skewing the whole functionality where the model may learn that entering long text means no answer will be given.
+
+Elimninate cutoff blocks option will simply not use such block at all. No block is much preferable than having a bad block.
+
+This options apply only to JSON dataset for obvious reasons.
+
