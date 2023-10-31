@@ -96,7 +96,12 @@ One optical "benefit" of GA is that the loss will fluctuate less (because of all
 
 ### Eliminating bad blocks
 
-If you use JSON and a block is longer than Maximum context length (Cutoff) by default it will be trimmed to the Maximum context length (Cutoff). That's the default behavior. While it may work on some cases where the end of the block is not much more important than the beginning, in some other cases this may create a really ugly block. Imagine a labeling system of an input text where you train it on USER: ... some long text... ASSISTANT: Movie script
+If you use JSON and a block is longer than Maximum context length (Cutoff) by default it will be trimmed to the Maximum context length (Cutoff). That's the default behavior. While it may work on some cases where the end of the block is not much more important than the beginning, in some other cases this may create a really ugly block. Imagine a labeling system of an input text where you train it on 
+
+USER: ... some long text... 
+
+ASSISTANT: Movie script
+
 In such case trimming the block will probably cutoff the entire answer thus making the block useless. Not only that, also skewing the whole functionality where the model may learn that entering long text means no answer will be given.
 
 Elimninate cutoff blocks option will simply not use such block at all. No block is much preferable than having a bad block.
