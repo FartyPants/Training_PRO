@@ -13,6 +13,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
+- fix for some confusion in raw text over what is EOS token
 - Suggestions for Maximum Context length (Measures the longest block in tokens)
 - Eliminate cutoff blocks - instead of trimming block if it is above cutoff it will eliminate the block all together. 
 - fixes, Group samples by length - makes learning more efficient
