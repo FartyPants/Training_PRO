@@ -26,6 +26,9 @@ from .custom_scheduler import FPSchedulerTrainer, FPNEFtuneTrainer
 from .matplotgraph import create_graph
 from .train_utils import get_available_loras_local, precise_cut, sliding_block_cut, download_file_from_url
 
+from peft.tuners.lora import QuantLinear
+import bitsandbytes as bnb
+
 from datasets import Dataset, load_dataset
 from peft import (
     LoraConfig,
@@ -125,7 +128,7 @@ non_serialized_params = {
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -150,7 +153,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 31.10.20` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 23.11.04` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -197,7 +200,8 @@ def ui():
                             warmup_steps = gr.Number(label='Warmup Steps', value=100, info='Number of max steps used for a linear warmup. Reduces early over-fitting by the first training blocks. Value has precedent over Warmup Ratio. Aligns to the closest multiple of graddient accumulation')
                             warmup_ratio = gr.Slider(label='Warmup Ratio', minimum=0.0, maximum=0.2, step=0.025, value=0.0, info='Ratio of total training steps that will be used for a linear warmup. It applies only if Warmup Step is 0.')
                             neft_noise_alpha = gr.Slider(label='NEFtune noise scale', minimum=0.0, maximum=15, step=1, value=0.0, info='Add noise to the training to improve generalization. [0 - OFF, Starting value to experiment: 5]')
-                            training_projection = gr.Radio(value = train_choices[4], label='LLaMA Target Projections', info='Change the targets (LORA is typically q-v)', choices=train_choices)    
+                            training_projection = gr.Radio(value = train_choices[4], label='LLaMA Target Projections', info='Change the targets (LORA is typically q-v)', choices=train_choices)
+                            lora_target_linear = gr.Checkbox(label='All Linear Targets', value=False, info='Use all linear targets in the model')
                             lora_dropout = gr.Slider(label='LoRA Dropout', minimum=0.0, maximum=1.0, step=0.025, value=0.05, info='Percentage probability for dropout of LoRA layers. This can help reduce overfitting. Most users should leave at default.')
                             optimizer = gr.Dropdown(label='Optimizer', value='adamw_torch', choices=['adamw_hf', 'adamw_torch', 'adamw_torch_fused', 'adamw_torch_xla', 'adamw_apex_fused', 'adafactor', 'adamw_bnb_8bit', 'adamw_anyprecision', 'sgd', 'adagrad'], info='Different optimizer implementation options, for advanced users. Effects of different options are not well documented yet.', elem_classes=['slim-dropdown'])
 
@@ -314,7 +318,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -393,11 +397,26 @@ def ui():
             if min_chars<0:
                 min_chars = 0
 
+            EOS_token_str = '</s>'
+            BOS_token_str = '<s>'
+           
+            if hasattr(shared.tokenizer, 'bos_token'):
+                BOS_token_str = shared.tokenizer.bos_token
+            else:    
+                print(f" - No {RED}BOS{RESET} token defined in tokenizer, using default")
+
+            if hasattr(shared.tokenizer, 'eos_token'):
+                EOS_token_str = shared.tokenizer.eos_token
+            else:
+                print(f" - No {RED}EOS{RESET} token defined in tokenizer, using default")    
+                
+ 
+            print(f"Tokenizer BOS token: {GREEN}{BOS_token_str}{RESET}, EOS token:  {RED}{EOS_token_str}{RESET}")
             # == New more precise slicing on sentence boundary ==
             if sliding_window:
-                text_chunks = sliding_block_cut(raw_text, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
+                text_chunks = sliding_block_cut(raw_text, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'],EOS_token_str,BOS_token_str)
             else:
-                text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
+                text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, False, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'],EOS_token_str,BOS_token_str)
 
 
             total_blocks = len(text_chunks)
@@ -426,6 +445,9 @@ def ui():
             if format in ['None', '']:
                 yield "Select format choice for dataset."
                 return
+            
+            if shared.tokenizer.pad_token_id is None:
+                shared.tokenizer.pad_token_id = 0
 
             with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
                 format_data: dict[str, str] = json.load(formatFile)
@@ -717,7 +739,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -775,7 +797,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     batch_size = 0
 
     gradient_accumulation_steps = grad_accumulation #batch_size // micro_batch_size
-    shared.tokenizer.pad_token_id = 0
+    if shared.tokenizer.pad_token_id is None:
+        shared.tokenizer.pad_token_id = 0
+
     shared.tokenizer.padding_side = "left"
 
     def encode(text, prepend_bos_token):
@@ -881,6 +905,22 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         if min_chars<0:
             min_chars = 0
 
+        EOS_token_str = '</s>'
+        BOS_token_str = '<s>'
+        
+        if hasattr(shared.tokenizer, 'bos_token'):
+            BOS_token_str = shared.tokenizer.bos_token
+        else:    
+            print(f" - No {RED}BOS{RESET} token defined in tokenizer, using default")
+
+        if hasattr(shared.tokenizer, 'eos_token'):
+            EOS_token_str = shared.tokenizer.eos_token
+        else:
+            print(f" - No {RED}EOS{RESET} token defined in tokenizer, using default")    
+            
+
+        print(f"Tokenizer BOS token: {GREEN}{BOS_token_str}{RESET}, EOS token:  {RED}{EOS_token_str}{RESET}")
+
         add_EOS_to_all = add_eos_token and add_eos_token_type == 'Every Block'
         add_EOS_to_HC = add_eos_token and add_eos_token_type != 'Every Block'
 
@@ -888,9 +928,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
         # == New more precise slicing on sentence boundary ==
         if sliding_window:
-            text_chunks = sliding_block_cut(raw_text, min_chars, add_EOS_to_HC, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
+            text_chunks = sliding_block_cut(raw_text, min_chars, add_EOS_to_HC, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'],EOS_token_str,BOS_token_str)
         else:
-            text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, add_EOS_to_HC, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'])
+            text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, add_EOS_to_HC, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'],EOS_token_str,BOS_token_str)
 
         train_data = Dataset.from_list([tokenize(x, add_EOS_to_all, add_bos_token) for x in text_chunks])
         if add_EOS_to_all:
@@ -943,7 +983,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         if eliminate_long_blocks:
 
             num_items_before = len(train_data)
-            print(f"Filtering {num_items_before} blocks for elimination")
+            print(f"Filtering {num_items_before} blocks...")
             filtered_train_data = []
             for example in train_data:
                 
@@ -953,7 +993,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
          
             train_data = Dataset.from_list(filtered_train_data)
             num_items_after = len(train_data)
-            print(f" - Eliminated Data Blocks above {cutoff_len} tokens: {num_items_before - num_items_after}")
+            print(f" - Eliminated {RED}{num_items_before - num_items_after} blocks{RESET} that were above  {cutoff_len} tokens cutoff:")
 
         if eval_dataset == 'None' or eval_dataset == '':
             eval_data = None
@@ -997,6 +1037,23 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     shared.model_dirty_from_training = True
     print(f"Transformers Model Type: {YELLOW}{model_type}{RESET}")
 
+    def find_all_linear_names(model):
+        cls = (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt, torch.nn.Linear, QuantLinear)
+        lora_module_names = set()
+        for name, module in model.named_modules():
+            if (
+                isinstance(module, cls)
+                or "Linear" in module.__class__.__name__
+                and module.__class__.__name__ not in ("LlamaLinearScalingRotaryEmbedding",)
+            ):
+                names = name.split(".")
+                lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+
+        if "lm_head" in lora_module_names:  # needed for 16-bit
+            lora_module_names.remove("lm_head")
+
+        return list(lora_module_names)    
+
     if training_projection==train_choices[0]:
         model_to_lora_modules[model_id] = ["gate_proj","down_proj","up_proj","q_proj","k_proj","v_proj","o_proj"]
     elif training_projection==train_choices[1]:
@@ -1007,16 +1064,30 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         model_to_lora_modules[model_id] = ["k_proj", "v_proj", "down_proj"]        
     else:
         model_to_lora_modules[model_id] = ["q_proj", "v_proj"]
-
+ 
+    if lora_target_linear:
+        linear_names = find_all_linear_names(shared.model)
+        print(f"Found linear modules: {repr(linear_names)}")
+        model_to_lora_modules[model_id] = list(set(model_to_lora_modules[model_id] + linear_names))
 
     logger.info("Preparing for training...")
+    # == Create LoRA config ==
+   
+    # modules_to_save = ["lm_head", "embed_tokens"]
+    # If you added new tokens to the tokenizer, you may need to save some LoRA modules because they need to know the new tokens.
+    # For LLaMA and Mistral, you need to save `embed_tokens` and `lm_head`. It may vary for other models.
+    # `embed_tokens` converts tokens to embeddings, and `lm_head` converts embeddings to token probabilities.
+
+    modules_save = None
+
     config = LoraConfig(
         r=lora_rank,
         lora_alpha=lora_alpha,
         target_modules=model_to_lora_modules[model_id],
         lora_dropout=lora_dropout,
         bias="none",
-        task_type="CAUSAL_LM"
+        task_type="CAUSAL_LM",
+        modules_to_save=modules_save,
     )
 
     # == Backup the existing adapter ==
@@ -1282,6 +1353,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             ddp_find_unused_parameters=None,
             no_cuda=shared.args.cpu,
             group_by_length = group_by_length,
+            gradient_checkpointing=True,
         )
 
     if custom_scheduller:

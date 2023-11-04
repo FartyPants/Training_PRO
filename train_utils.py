@@ -99,10 +99,10 @@ def split_sentences(text: str, cutoff_len: int):
 # hard cut defined by hard_cut_string or </s> will always end at the end of data block
 # no overlapping blocks will be created across hard cut or across </s> token
 
-def precise_cut(text: str, overlap: bool, min_chars_cut: int, eos_to_hc: bool, cutoff_len: int, hard_cut_string: str, debug_slicer:bool):
+def precise_cut(text: str, overlap: bool, min_chars_cut: int, eos_to_hc: bool, cutoff_len: int, hard_cut_string: str, debug_slicer:bool,EOS_token_str:str,BOS_token_str:str):
 
     EOSX_str = '<//>' #hardcut placeholder
-    EOS_str = '</s>' 
+    EOS_str = EOS_token_str 
     print("Precise raw text slicer: ON")
     
     cut_string = hard_cut_string.replace('\\n', '\n')
@@ -181,14 +181,15 @@ def precise_cut(text: str, overlap: bool, min_chars_cut: int, eos_to_hc: bool, c
             sentencelist[i] = sentencelist[i].replace(EOSX_str, '')
         
         #someone may have had stop strings in the raw text...
-        sentencelist[i] = sentencelist[i].replace("</s></s>", EOS_str)
+        replace_str = f"{EOS_str}{EOS_str}"
+        sentencelist[i] = sentencelist[i].replace(replace_str, EOS_str)
         num_EOS += sentencelist[i].count(EOS_str)
 
     if num_EOS > 0:
         print(f"+ EOS count: {num_EOS}")
 
     #final check for useless lines
-    sentencelist = [item for item in sentencelist if item.strip() != "</s>"]
+    sentencelist = [item for item in sentencelist if item.strip() != EOS_str]
     sentencelist = [item for item in sentencelist if item.strip() != ""]
 
 
@@ -205,10 +206,10 @@ def precise_cut(text: str, overlap: bool, min_chars_cut: int, eos_to_hc: bool, c
     return sentencelist   
 
 
-def sliding_block_cut(text: str, min_chars_cut: int, eos_to_hc: bool, cutoff_len: int, hard_cut_string: str, debug_slicer:bool):
+def sliding_block_cut(text: str, min_chars_cut: int, eos_to_hc: bool, cutoff_len: int, hard_cut_string: str, debug_slicer:bool,EOS_token_str:str,BOS_token_str:str):
 
     EOSX_str = '<//>' #hardcut placeholder
-    EOS_str = '</s>' 
+    EOS_str = EOS_token_str 
     print("Mega Block Overlap: ON")
     
     cut_string = hard_cut_string.replace('\\n', '\n')
@@ -268,14 +269,15 @@ def sliding_block_cut(text: str, min_chars_cut: int, eos_to_hc: bool, cutoff_len
             sentencelist[i] = sentencelist[i].replace(EOSX_str, '')
         
         #someone may have had stop strings in the raw text...
-        sentencelist[i] = sentencelist[i].replace("</s></s>", EOS_str)
+        replace_str = f"{EOS_str}{EOS_str}"
+        sentencelist[i] = sentencelist[i].replace(replace_str, EOS_str)
         num_EOS += sentencelist[i].count(EOS_str)
 
     if num_EOS > 0:
         print(f"+ EOS count: {num_EOS}")
 
     #final check for useless lines
-    sentencelist = [item for item in sentencelist if item.strip() != "</s>"]
+    sentencelist = [item for item in sentencelist if item.strip() != EOS_str]
     sentencelist = [item for item in sentencelist if item.strip() != ""]
 
 
@@ -366,3 +368,26 @@ def download_file_from_url(url, overwrite, output_dir_in, valid_extensions = {'.
         # Close the session to release resources
         session.close()
 
+def string_to_dict(input_string: str):
+    # Your input string
+    #input_string = 'bos_token: "<s>", eos_token: "</s>", unk_token: "<unk>"'
+
+    # Split the string into key-value pairs
+    key_value_pairs = input_string.split(',')
+
+    # Initialize an empty dictionary
+    config_dict = {}
+
+    # Iterate through the key-value pairs and populate the dictionary
+    for pair in key_value_pairs:
+        key, value = pair.split(':')
+        key = key.strip()
+        value = value.strip()
+        value = value.strip('"')
+        config_dict[key] = value
+
+    return config_dict
+
+# from transformers import AddedToken
+#  for k, val in special_tokens.items():
+#      tokenizer.add_special_tokens({k: AddedToken(val, rstrip=False, lstrip=False, normalized=False)})
