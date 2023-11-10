@@ -153,7 +153,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 23.11.04` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 23.11.10` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -1247,10 +1247,12 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 control.should_training_stop = True
 
         def on_log(self, args: transformers.TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, logs, **kwargs):
+            
+            logs["epoch"] = round(state.epoch, 3)
             train_log.update(logs)
 
             current_steps_offset = tracked.current_steps + non_serialized_params['checkpoint_offset']
-            current_epoch_offset = train_log.get('epoch', 0.0) + non_serialized_params['epoch_offset']
+            current_epoch_offset = train_log.get('epoch', 0.000) + non_serialized_params['epoch_offset']
 
             train_log.update({"current_steps": tracked.current_steps})
             train_log.update({"current_steps_adjusted": current_steps_offset})
@@ -1268,12 +1270,12 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 'current_steps': int(train_log.get('current_steps_adjusted',0)),
                 'loss': float(train_log.get('loss', 0.0)),
                 'learning_rate': float(train_log.get('learning_rate', 0.0)),
-                'epoch': float(train_log.get('epoch_adjusted', 0.0))
+                'epoch': float(train_log.get('epoch_adjusted', 0.000))
             }
 
             cur_loss = float(train_log.get('loss', 0.0))
             cur_lr = float(train_log.get('learning_rate', 0.0))
-            cur_epoch = float(train_log.get('epoch', 0.0))
+            cur_epoch = float(train_log.get('epoch', 0.000))
             
             if len(statistics['loss']) == 1:
                 first_epoch = statistics['loss'][0]['epoch']
