@@ -42,6 +42,13 @@ from transformers.models.auto.modeling_auto import (
     MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 )
 
+import warnings
+
+warnings.filterwarnings(action = "ignore", message="torch.utils.checkpoint:")
+warnings.filterwarnings(action = "ignore", message="`do_sample` is set to `False`")
+
+
+
 from modules import shared, utils
 from modules.ui import create_refresh_button
 
@@ -54,60 +61,6 @@ from modules.logging_colors import logger
 from modules.models import reload_model
 from modules.utils import natural_keys
 
-
-
-## just temporary to avoid warning
-
-import inspect
-
-from typing import Callable, Optional, Tuple, ContextManager
-
-
-
-if hasattr(torch.utils.checkpoint, 'noop_context_fn'):
-    def my_checkpoint(
-        function,
-        *args,
-        use_reentrant: Optional[bool] = None,
-        context_fn: Callable[[], Tuple[ContextManager, ContextManager]] = torch.utils.checkpoint.noop_context_fn,
-        determinism_check: str = torch.utils.checkpoint._DEFAULT_DETERMINISM_MODE,
-        debug: bool = False,
-        **kwargs
-    ):
-
-        if use_reentrant is None:
-            #print ("reentran = NONE")
-            use_reentrant = True
-        # Hack to mix *args with **kwargs in a python 2.7-compliant way
-        preserve = kwargs.pop("preserve_rng_state", True)
-        if kwargs and use_reentrant:
-            raise ValueError(
-                "Unexpected keyword arguments: " + ",".join(arg for arg in kwargs)
-            )
-
-        if use_reentrant:
-            if context_fn is not torch.utils.checkpoint.noop_context_fn or debug is not False:
-                raise ValueError(
-                    "Passing `context_fn` or `debug` is only supported when "
-                    "use_reentrant=False."
-                )
-            return torch.utils.checkpoint.CheckpointFunction.apply(function, preserve, *args)
-        else:
-
-            print ("reentran = FALSE")
-            gen = torch.utils.checkpoint._checkpoint_without_reentrant_generator(
-                function, preserve, context_fn, determinism_check, debug, *args, **kwargs
-            )
-            # Runs pre-forward logic
-            next(gen)
-            ret = function(*args, **kwargs)
-            # Runs post-forward logic
-            try:
-                next(gen)
-            except StopIteration:
-                return ret
-
-
 params = {
         "display_name": "Training PRO",
         "is_tab": True
@@ -117,6 +70,7 @@ non_serialized_params = {
         "debug_slicer": False,
         "Lora_sortedByTime": False,
         "stop_at_loss": 0,
+        "stop_at_epoch": 0,
         "save_steps_under_loss": 0.0,
         "save_checkpoint_now": False,
         "training_loop": False,
@@ -124,11 +78,13 @@ non_serialized_params = {
         "save_epochs": 0,
         "checkpoint_offset": 0,
         "epoch_offset":0,
+        "safe_serialization": False,
 }
+
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -179,8 +135,6 @@ def ui():
                         grad_accumulation = gr.Slider(label='Gradient Accumulation Steps', value=1, minimum=1, maximum=256, step=1, info="Virtually multiplies the Batch Size by averaging the learning over more than one step. VRAM friendly. Evens out loss fluctuations but can also degrade training fidelity.")
 
                     with gr.Column():
-                        stop_at_loss = gr.Slider(label='Stop at loss (Can be changed during training)', minimum=0.0, maximum=3.0, step=0.1, value=0.00, info='The process will automatically stop once the desired loss value is reached.')
-                        gr.Markdown(" ")
                         epochs = gr.Number(label='Epochs', value=3, info='Number of times every entry in the dataset should be fed into training. So 1 means feed each item in once, 5 means feed it in five times, etc.')
                         learning_rate = gr.Textbox(label='Learning Rate', value='3e-4', info='In scientific notation. 3e-4 is a good starting base point. 1e-2 is extremely high, 1e-6 is extremely low.')
                         lr_scheduler_type = gr.Dropdown(label='LR Scheduler', value='linear', choices=['linear', 'constant', 'constant_with_warmup', 'cosine', 'cosine_with_restarts', 'polynomial', 'inverse_sqrt', 'FP_low_epoch_annealing', 'FP_half_time_annealing','FP_raise_fall_creative'], info='Learning rate scheduler - defines how the learning rate changes over time. Custom schedulers: FP_low_epoch_annealing, FP_half_time_annealing, FP_raise_fall_creative (see README)', elem_classes=['slim-dropdown'])
@@ -193,7 +147,13 @@ def ui():
                             save_steps_under_loss = gr.Slider(label='Save at 10% Loss change', value=1.8, minimum=0.0, maximum=3.0, step=0.1, info="Saves checkpoints at (or bellow) this loss and then each time loss falls by at least 10% This works independently from 'Save every n steps'")    
                     with gr.Row():        
                         save_chackpoint_now = gr.Button('Queue Checkpoint Now')
-
+                with gr.Accordion(label ='Stops (can be changed during training)',open = True):
+                    with gr.Row():
+                        with gr.Column():
+                            stop_at_loss = gr.Slider(label='Stop at loss', minimum=0.0, maximum=3.0, step=0.1, value=0.00, info='If non 0 the process will automatically stop once the desired loss value is reached.')
+                        with gr.Column():
+                            stop_at_epoch = gr.Slider(label='Stop at Epoch', minimum=0, maximum=20, step=1, value=0, info='If non 0 the process will stop early once the set epoch is finished.')                              
+     
                 with gr.Accordion(label='Advanced Options', open=True):
                     with gr.Row():
                         with gr.Column():
@@ -302,7 +262,7 @@ def ui():
                         stride_length = gr.Slider(label='Stride', minimum=1, maximum=2048, value=512, step=1, info='Used to make the evaluation faster at the cost of accuracy. 1 = slowest but most accurate. 512 is a common value.')
 
                     with gr.Column():
-                        max_length = gr.Slider(label='max_length', minimum=0, maximum=8096, value=0, step=1, info='The context for each evaluation. If set to 0, the maximum context length for the model will be used.')
+                        max_length = gr.Slider(label='max_length', minimum=0, maximum=shared.settings['truncation_length_max'], value=0, step=1, info='The context for each evaluation. If set to 0, the maximum context length for the model will be used.')
 
                 with gr.Row():
                     start_current_evaluation = gr.Button("Evaluate loaded model")
@@ -318,7 +278,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -339,8 +299,13 @@ def ui():
         if non_serialized_params['training_loop']:
             print(f"Queue: [Stop at loss Change] to {stop_at_loss_value}")
 
+    def trigger_stop_at_epoch(stop_at_epoch_value):
+        non_serialized_params.update({"stop_at_epoch": stop_at_epoch_value})
+        if non_serialized_params['training_loop']:
+            print(f"Queue: [Stop at Epoch Change] to {stop_at_epoch_value}")    
 
     stop_at_loss.change(trigger_stop_at_loss, stop_at_loss, None)
+    stop_at_epoch.change(trigger_stop_at_epoch, stop_at_epoch, None)
 
     def trigger_save_checkpoint():
         non_serialized_params.update({"save_checkpoint_now": True})
@@ -739,7 +704,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -854,6 +819,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     #reset stuff
     print(f"*** LoRA: {lora_name} ***")
     non_serialized_params.update({"stop_at_loss": stop_at_loss})
+    non_serialized_params.update({"stop_at_epoch": stop_at_epoch})
     non_serialized_params.update({"save_steps_under_loss": save_steps_under_loss+0.01})
     non_serialized_params.update({"save_checkpoint_now": False})
     non_serialized_params.update({"training_loop": False})
@@ -863,22 +829,6 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     non_serialized_params.update({"epoch_offset": 0})
     train_log_graph.clear()
    
-    # === once fixed, this can be removed ==============================
-    if hasattr(torch.utils.checkpoint, 'noop_context_fn'):
-        print("Testing Pytorch...")
-        old_checkpoint_signature = inspect.signature(torch.utils.checkpoint.checkpoint)
-
-        # Get the signature of your new checkpoint function
-        my_checkpoint_signature = inspect.signature(my_checkpoint)
-
-        # Check if the signatures match
-        if old_checkpoint_signature.parameters == my_checkpoint_signature.parameters:
-            print(F"{RED}Overriding Torch checkpoint function to avoid repeated 'use_reentrant not explicitly set' warnings{RESET}")
-            #print(" - Note: Transformers need to pass use_reentrant in llama.modeling_llama in def forward,  layer_outputs = torch.utils.checkpoint.checkpoint")
-            #print("         Once they do, this function can be removed")
-            torch.utils.checkpoint.checkpoint = my_checkpoint
-    
-
     # END OF FPHAM SENTENCE SPLIT functions ===================     
 
     # == Prep the dataset, format, etc ==
@@ -1230,7 +1180,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                     force_save = True   
 
                 if force_save:       
-                    lora_model.save_pretrained(f"{lora_file_path}/{folder_save}/")
+                    lora_model.save_pretrained(f"{lora_file_path}/{folder_save}/", safe_serialization = non_serialized_params['safe_serialization'])
                     print(f"\033[1;30;40mStep: {tracked.current_steps:6} \033[0;37;0m Saved: [{folder_save}]")
                     # Save log
                     with open(f"{lora_file_path}/{folder_save}/training_log.json", 'w', encoding='utf-8') as file:
@@ -1239,6 +1189,11 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                     with open(f"{lora_file_path}/{folder_save}/training_prompt.json", 'w', encoding='utf-8') as file:
                         json.dump(train_template, file, indent=2)
                 
+                epoch_int = int(state.epoch)
+                if epoch_int > stop_at_epoch and stop_at_epoch > 0:
+                    control.should_epoch_stop = True
+                    control.should_training_stop = True
+                    print(f"{RED}Stop at the end of Epoch {stop_at_epoch} reached.{RESET}")
 
         def on_substep_end(self, args: transformers.TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, **kwargs):
             tracked.current_steps += 1
@@ -1300,6 +1255,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                     control.should_epoch_stop = True
                     control.should_training_stop = True
                     print(f"{RED}Stop Loss {stop_at_loss} reached.{RESET}")
+                  
 
     # FPHAM SAMPLE REQ Transformers error handling
     gradient_accumulation_max = int(train_data.num_rows)//micro_batch_size
@@ -1433,7 +1389,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     if stop_at_loss > 0:
         print(f"Monitoring loss {RED}(Auto-Stop at: {stop_at_loss}){RESET}")
 
-    
+    if stop_at_epoch > 0:
+        print(f"Monitoring Epoch {RED}(Auto-Stop at the end of: {stop_at_epoch}){RESET}")
 
     if WANT_INTERRUPT:
         yield "Interrupted before start.", zero_pd
@@ -1461,7 +1418,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         log_train_dataset(trainer)
         trainer.train()
         # Note: save in the thread in case the gradio thread breaks (eg browser closed)
-        lora_model.save_pretrained(lora_file_path)
+        lora_model.save_pretrained(lora_file_path, safe_serialization = non_serialized_params['safe_serialization'])
         logger.info("LoRA training run is completed and saved.")
         # Save log
         with open(f"{lora_file_path}/training_log.json", 'w', encoding='utf-8') as file:
@@ -1524,6 +1481,10 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             if stop_at_loss != non_serialized_params['stop_at_loss']:
                 stop_at_loss = non_serialized_params['stop_at_loss']
                 print(f"Stop at loss changed {RED}(Auto-Stop at: {stop_at_loss}){RESET}")
+
+            if stop_at_epoch != non_serialized_params['stop_at_epoch']:
+                stop_at_epoch = non_serialized_params['stop_at_epoch']
+                print(f"Stop at epoch changed {RED}(Auto-Stop at the end of: {stop_at_epoch}){RESET}")
             
             losses = gr.LinePlot.update(
 				value = pd.DataFrame(statistics['loss']),
@@ -1562,7 +1523,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
     if not tracked.did_save:
         logger.info("Training complete, saving...")
-        lora_model.save_pretrained(lora_file_path)
+        lora_model.save_pretrained(lora_file_path, safe_serialization = non_serialized_params['safe_serialization'])
 
     if WANT_INTERRUPT:
         logger.info("Training interrupted.")
