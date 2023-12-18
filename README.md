@@ -16,6 +16,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 - perlexity eval max_length from webui truncation_length_max
 - stop at epoch (can be changed during training)
 - force bin instead of safetensors (for now)
+- remove torch detour and instead set warning ignore
 - epoch log is now in 3 decimal numbers instead of 2
 - fix for some confusion in raw text over what is EOS token
 - Suggestions for Maximum Context length (Measures the longest block in tokens)
