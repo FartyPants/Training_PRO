@@ -13,7 +13,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
-- perlexity eval max_length from webuyi truncation_length_max
+- perlexity eval max_length from webui truncation_length_max
 - stop at epoch (can be changed during training)
 - force bin instead of safetensors (for now)
 - epoch log is now in 3 decimal numbers instead of 2
