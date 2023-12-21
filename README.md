@@ -9,7 +9,7 @@ Repo home:
 
 https://github.com/FartyPants/Training_PRO
 
-In general the repo is ahead (could be a few months) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested, while this version (while tested as well) adds many experimental features that would change shape in further weeks. 
+In general the repo is ahead (could be a few months) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested and stable, while the repo version adds many experimental features that could change shape in further weeks. 
 
 ## News
 
