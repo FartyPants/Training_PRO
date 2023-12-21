@@ -13,6 +13,7 @@ In general the repo above is ahead of the extension included in text WebUi.
 
 ## News
 
+- Ability to use JSONL (OpenAi) datasets. The format will be chosen automatically from the Template embedded in tokenizer
 - perlexity eval max_length from webui truncation_length_max
 - stop at epoch (can be changed during training)
 - force bin instead of safetensors (for now)
@@ -122,3 +123,16 @@ Makes the training more efficient as it will group blocks with simillar size int
 
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/57acfb4c-085a-4d0c-a801-faa11832d413)
 
+### JSONL datasets
+Those are the new type of datasets that have role defined. They expect the jinja Template. The format is:
+
+>[
+>  {
+>    "messages": [
+>      {"role": "system", "content": "Marv is a factual chatbot that is also sarcastic."},
+>      {"role": "user", "content": "What's the capital of France?"},
+>      {"role": "assistant", "content": "Paris, as if everyone doesn't know that already."}
+>    ]
+>  },
+
+The format will be chosen autmatically from the chat Template embedded in the tokenizer metadata. If no format is specified (legacy) then the jinja instruction template specified in WebUI will be used
