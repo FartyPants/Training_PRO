@@ -29,7 +29,7 @@ from .train_utils import get_available_loras_local, precise_cut, sliding_block_c
 from peft.tuners.lora import QuantLinear
 import bitsandbytes as bnb
 
-from datasets import Dataset, load_dataset
+from datasets import Dataset, load_dataset, DatasetDict
 from peft import (
     LoraConfig,
     get_peft_model,
@@ -185,7 +185,7 @@ def ui():
                         
 
             with gr.Column():
-                with gr.Tab(label='Formatted Dataset'):
+                with gr.Tab(label='JSON Dataset'):
                     with gr.Row():
                         with gr.Column():
                             with gr.Row():
@@ -200,6 +200,20 @@ def ui():
                                 create_refresh_button(format, lambda: None, lambda: {'choices': get_datasets('training/formats', 'json')}, 'refresh-button')
                             with gr.Row():
                                 eval_steps = gr.Number(label='Evaluate every n steps', value=100, info='If an evaluation dataset is given, test it every time this many steps pass.')
+                with gr.Tab(label='JSONL Dataset'):
+                    with gr.Row():
+                        with gr.Column():
+                            with gr.Row():
+                                datasetJSONL = gr.Dropdown(choices=get_datasets('training/datasets', 'jsonl'), value='None', label='JSONL Dataset', info='JSONL dataset file to use for training. See OpenAI documentation.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                                create_refresh_button(datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'jsonl')}, 'refresh-button')
+                            with gr.Row():
+                                eval_datasetJSONL = gr.Dropdown(choices=get_datasets('training/datasets', 'jsonl'), value='None', label='JSONL Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                                create_refresh_button(eval_datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'json')}, 'refresh-button')
+                        with gr.Column():
+                            with gr.Row():
+                                gr.Markdown('The format will be chosen automatically from the chat template in tokenizer. If the tokenizer doesn\'t have chat template defined (legacy), select the correct template in the WebUI [Parameters - Instruction template]')
+                            with gr.Row():
+                                eval_stepsJSONL = gr.Number(label='Evaluate every n steps', value=100, info='If an evaluation JSONL dataset is given, test it every time this many steps pass.')
 
                 with gr.Tab(label="Text file"):
                     with gr.Row():
@@ -278,7 +292,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL ]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -324,9 +338,9 @@ def ui():
 
     save_chackpoint_now.click(trigger_save_checkpoint, None, None).then(update_button, None,save_chackpoint_now).then(update_button2, None,save_chackpoint_now)
 
-    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation]
+    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation, datasetJSONL]
 
-    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int):
+    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int, datasetJSONL:str):
         result = "Specify JSON dastaset or Text file"
         total_blocks = 0
         if shared.tokenizer is None:
@@ -401,22 +415,55 @@ def ui():
             max_length_tokens = 0
 
             del text_chunks
-       
         else:
-            if dataset in ['None', '']:
-                yield "Select dataset or text file."
-                return 
+            data = None
+            format_data: dict[str, str] = {}
+            format_text = ''
 
-            if format in ['None', '']:
-                yield "Select format choice for dataset."
-                return
+            if datasetJSONL not in ['None', '']:
+
+                logger.info("Loading JSONL datasets...")
             
-            if shared.tokenizer.pad_token_id is None:
-                shared.tokenizer.pad_token_id = 0
+                with open(clean_path('training/datasets', f'{datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFile:
+                    loaded_JSONLdata = json.load(dataFile)
 
-            with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
-                format_data: dict[str, str] = json.load(formatFile)
+                
+                chat_template = shared.tokenizer.chat_template
+                format_text = "Template: [Embedded]"
+                if shared.tokenizer.chat_template is None or shared.tokenizer.chat_template =='':
+                    print(f"{RED}Missing chat template in tokenizer. Using instruction_template instead{RESET}")
+                    shared.tokenizer.chat_template = shared.persistent_interface_state['instruction_template_str'] 
+                    format_text = "Template: [Missing] << using instruction template instead"
 
+                logger.info("Applying chat template")               
+                data_list = [{"jsonl": shared.tokenizer.apply_chat_template(entry["messages"], tokenize=False, add_generation_prompt=False)} for entry in loaded_JSONLdata]
+                
+                shared.tokenizer.chat_template = chat_template
+                data = DatasetDict()
+                data['train'] = Dataset.from_list(data_list)
+                format_data = {"jsonl": "%jsonl%"}
+
+            else:
+                if dataset in ['None', '']:
+                    yield "Select dataset or text file."
+                    return 
+
+                if format in ['None', '']:
+                    yield "Select format choice for dataset."
+                    return
+            
+                if shared.tokenizer.pad_token_id is None:
+                    shared.tokenizer.pad_token_id = 0
+
+                with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
+                    format_data: dict[str, str] = json.load(formatFile)
+
+                format_text = f'Format: [JSON] {format}'    
+
+                logger.info("Loading JSON datasets...")
+
+                data = load_dataset("json", data_files=clean_path('training/datasets', f'{dataset}.json'))
+     
             def generate_prompt(data_point: dict[str, str]):
                 for options, data in format_data.items():
                     if set(options.split(',')) == set(x[0] for x in data_point.items() if (type(x[1]) is str and len(x[1].strip()) > 0)):
@@ -440,10 +487,7 @@ def ui():
             def generate_and_tokenize_prompt(data_point):
                 prompt = generate_prompt(data_point)
                 return tokenize_dummy(prompt)
-
-            logger.info("Loading JSON datasets...")
-            data = load_dataset("json", data_files=clean_path('training/datasets', f'{dataset}.json'))
-            
+          
             data_keys = [] 
 
             if data:
@@ -469,7 +513,7 @@ def ui():
 
             max_length_tokens = max_length
 
-            result = f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len} tokens\n(Keys: {data_keys} - Format: {format}.json): "
+            result = f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len} tokens\nKeys: {data_keys}  {format_text}"
             result += f"\nLongest Block: {max_length_tokens} tokens. Second Longest Block: {second_max_length} tokens."
 
             #for options, data in format_data.items():
@@ -704,7 +748,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -891,23 +935,73 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         del text_chunks
         eval_data = None
     else:
-        if dataset in ['None', '']:
-            yield "Missing dataset choice input, cannot continue.", zero_pd
-            return
-
-        if format in ['None', '']:
-            yield "Missing format choice input, cannot continue.", zero_pd
-            return
-
+        data = None
+        eval_data = None
+        format_data: dict[str, str] = {}
         train_template["template_type"] = "dataset"
+        #=== JSONL ====
+        if datasetJSONL not in ['None', '']:
+    
+            logger.info("Loading JSONL datasets...")
+        
+            with open(clean_path('training/datasets', f'{datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFile:
+                loaded_JSONLdata = json.load(dataFile)
+            
+            chat_template = shared.tokenizer.chat_template
 
-        with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
-            format_data: dict[str, str] = json.load(formatFile)
+            if shared.tokenizer.chat_template is None or shared.tokenizer.chat_template =='':
+                print(f"{RED}No chat template defined in tokenizer. Using instruction_template{RESET}")
+                shared.tokenizer.chat_template = shared.persistent_interface_state['instruction_template_str'] 
 
-        # == store training prompt ==
-        for _, value in format_data.items():
-            prompt_key = f"template_{len(train_template)}"
-            train_template[prompt_key] = value
+            logger.info("Applying chat template")               
+            data_list = [{"jsonl": shared.tokenizer.apply_chat_template(entry["messages"], tokenize=False, add_generation_prompt=False)} for entry in loaded_JSONLdata]
+            
+            # another way would be to save data_list as JSON and then load it using load_dataset
+            data = DatasetDict()
+            data['train'] = Dataset.from_list(data_list)
+
+            if eval_datasetJSONL not in ['None', '']:
+                logger.info("Loading JSONL eval dataset...")
+                with open(clean_path('training/datasets', f'{eval_datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFileeval:
+                    loaded_JSONLevaldata = json.load(dataFileeval)
+                logger.info("Applying chat template to eval dataset")     
+                data_list_eval = [{"jsonl": shared.tokenizer.apply_chat_template(entry["messages"], tokenize=False, add_generation_prompt=False)} for entry in loaded_JSONLevaldata]
+               
+                eval_data = DatasetDict()
+                eval_data['train'] = Dataset.from_list(data_list_eval)
+
+            format_data = {"jsonl": "%jsonl%"}
+            shared.tokenizer.chat_template = chat_template
+            eval_steps = eval_stepsJSONL
+
+        else:
+            #=== JSON ====
+            if dataset in ['None', '']:
+                yield "Missing dataset choice input, cannot continue.", zero_pd
+                return
+
+            if format in ['None', '']:
+                yield "Missing format choice input, cannot continue.", zero_pd
+                return
+
+            with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
+                format_data: dict[str, str] = json.load(formatFile)
+
+            dataset_json = f'{dataset}.json'
+            eval_json = f'{eval_dataset}.json'
+
+            logger.info("Loading JSON training dataset...")
+            data = load_dataset("json", data_files=clean_path('training/datasets', dataset_json))
+
+            if eval_dataset not in ['None', '']:
+                logger.info("Loading JSON eval dataset...")
+                eval_data = load_dataset("json", data_files=clean_path('training/datasets', eval_json))
+
+
+            # == store training prompt ==
+            for _, value in format_data.items():
+                prompt_key = f"template_{len(train_template)}"
+                train_template[prompt_key] = value
 
         def generate_prompt(data_point: dict[str, str]):
             for options, data in format_data.items():
@@ -922,16 +1016,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             prompt = generate_prompt(data_point)
             return tokenize(prompt, add_eos_token, add_bos_token)
 
-        dataset_json = f'{dataset}.json'
-        eval_json = f'{eval_dataset}.json'
-
-        logger.info("Loading JSON training dataset...")
-        data = load_dataset("json", data_files=clean_path('training/datasets', dataset_json))
         train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
-
         if eliminate_long_blocks:
-
             num_items_before = len(train_data)
             print(f"Filtering {num_items_before} blocks...")
             filtered_train_data = []
@@ -945,11 +1032,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             num_items_after = len(train_data)
             print(f" - Eliminated {RED}{num_items_before - num_items_after} blocks{RESET} that were above  {cutoff_len} tokens cutoff:")
 
-        if eval_dataset == 'None' or eval_dataset == '':
-            eval_data = None
-        else:
-            logger.info("Loading JSON eval dataset...")
-            eval_data = load_dataset("json", data_files=clean_path('training/datasets', eval_json))
+        if eval_data is not None:  
             eval_data = eval_data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
         print(f"BOS: {add_bos_token} EOS: {add_eos_token}") 
