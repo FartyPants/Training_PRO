@@ -1,6 +1,6 @@
 # Training_PRO
 
-This is an expanded and reworked Training tab
+This is an expanded and reworked Training tab - the very latest and newest version
 Maintained by FP
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q5MOB4M)
@@ -9,7 +9,7 @@ Repo home:
 
 https://github.com/FartyPants/Training_PRO
 
-In general the repo above is ahead of the extension included in text WebUi.
+In general the repo is ahead (could be a few months) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested, while this version (while tested as well) adds many experimental features that would change shape in further weeks. 
 
 ## News
 
