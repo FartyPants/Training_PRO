@@ -109,7 +109,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 23.12.21` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 24.01.03` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -208,7 +208,7 @@ def ui():
                                 create_refresh_button(datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'jsonl')}, 'refresh-button')
                             with gr.Row():
                                 eval_datasetJSONL = gr.Dropdown(choices=get_datasets('training/datasets', 'jsonl'), value='None', label='JSONL Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
-                                create_refresh_button(eval_datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'json')}, 'refresh-button')
+                                create_refresh_button(eval_datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'jsonl')}, 'refresh-button')
                         with gr.Column():
                             with gr.Row():
                                 gr.Markdown('The format will be chosen automatically from the chat template in tokenizer. If the tokenizer doesn\'t have chat template defined (legacy), select the correct template in the WebUI [Parameters - Instruction template]')
@@ -244,12 +244,13 @@ def ui():
                             split_dataset_perc = gr.Number(label='Evaluation dataset split (percentage)', value=10, info='Splits JSON dataset into _train and _eval files by the split percentage. Make sure the JSON is selected in the Formatted Dataset tab first.')
                             split_dataset_do = gr.Button('Split dataset')
                         with gr.Column():    
-                            gr.Markdown('')
+                            convert_system = gr.Textbox(label = 'Convert JSON to JSONL', info = 'Select JSON in JSON Dataset tab and add System Message:', value='You are a helpful AI assistant.', lines=2)
+                            convert_do = gr.Button('Convert JSON to JSONL')
 
                 with gr.Row():
                     with gr.Column():
                         with gr.Row():
-                            cutoff_len = gr.Slider(label='Maximum context length (Cutoff)', minimum=32, maximum=2048, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
+                            cutoff_len = gr.Slider(label='Maximum context length (Cutoff)', minimum=32, maximum=4096, value=256, step=32, info='The maximum length of a chunk (in tokens). Applies to both JSON dataset and text files. Higher values require much more VRAM.')
                 with gr.Row():
                     with gr.Column():
                         check_dataset_btn = gr.Button('Verify Dataset/Text File and suggest data entries')    
@@ -652,6 +653,60 @@ def ui():
 
     split_dataset_do.click(split_dataset,[dataset,split_dataset_perc],None).then(update_datasetJSON, None,[dataset, eval_dataset]).then(select_dataset, dataset,[dataset,eval_dataset])
 
+    def update_datasetJSONL():
+        return gr.update(choices=get_datasets('training/datasets', 'jsonl')),gr.update(choices=get_datasets('training/datasets', 'jsonl'))
+
+    def convert_dataset(dataset, system_text):
+        if dataset == 'None' or dataset == '':
+            print("No dataset selected in Formatted Datasets")
+            return
+ 
+        dataset_json_new = f'{dataset}.jsonl'
+        dataset_json = f'{dataset}.json'
+      
+
+        with open(clean_path('training/datasets', dataset_json), 'r', encoding='utf-8-sig') as f:
+            data = json.load(f)
+
+        print(f"Converting {dataset_json}...")    
+        converted_data = []
+            
+        for entry in data:
+            if system_text == '':
+                converted_entry = {
+                    "messages": [
+                        {"role": "user", "content": entry["instruction"]},
+                        {"role": "assistant", "content": entry["output"]}
+                    ]
+                }
+            else:     
+                converted_entry = {
+                    "messages": [
+                        {"role": "system", "content": system_text},
+                        {"role": "user", "content": entry["instruction"]},
+                        {"role": "assistant", "content": entry["output"]}
+                    ]
+                }
+            converted_data.append(converted_entry)
+
+        print(f"Saving {dataset_json_new}")
+        with open(clean_path('training/datasets', dataset_json_new), 'w') as outfile:
+            json.dump(converted_data, outfile, indent=2)
+
+    def select_datasetJSONL(dataset):
+        dataset_json_new = f'{dataset}.jsonl'
+        pathJSONL = clean_path('training/datasets', dataset_json_new)
+        returnA = 'None'
+        returnB = 'None'
+
+        if Path(pathJSONL).is_file():
+           print(f"{dataset_json_new} file selected for training")
+           returnB = dataset_json_new.replace('.jsonl', '')
+
+        return returnA, returnB
+          
+
+    convert_do.click(convert_dataset,[dataset,convert_system],None).then(update_datasetJSONL, None,[datasetJSONL,eval_datasetJSONL]).then(select_datasetJSONL, dataset,[dataset,datasetJSONL])
 
 def get_datasets(path: str, ext: str):
     # include subdirectories for raw txt files to allow training from a subdirectory of txt files
