@@ -58,7 +58,7 @@ from modules.evaluate import (
     save_past_evaluations
 )
 from modules.logging_colors import logger
-from modules.models import reload_model
+from modules.models import reload_model, unload_model, load_model
 from modules.utils import natural_keys
 
 params = {
@@ -90,6 +90,7 @@ WANT_INTERRUPT = False
 train_log = {}
 train_template = {}
 train_log_graph = []
+
 train_choices = ["all","q-k-v-o","q-k-v","k-v-down","q-v"]
 
 statistics = {
@@ -109,7 +110,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 24.01.03` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 24.01.19` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -152,7 +153,7 @@ def ui():
                         with gr.Column():
                             stop_at_loss = gr.Slider(label='Stop at loss', minimum=0.0, maximum=3.0, step=0.1, value=0.00, info='If non 0 the process will automatically stop once the desired loss value is reached.')
                         with gr.Column():
-                            stop_at_epoch = gr.Slider(label='Stop at Epoch', minimum=0, maximum=20, step=1, value=0, info='If non 0 the process will stop early once the set epoch is finished.')                              
+                            stop_at_epoch = gr.Slider(label='Stop at Epoch', minimum=0, maximum=20, step=1, value=0, info='If non 0 the process will stop early once the set epoch is reached.')                              
      
                 with gr.Accordion(label='Advanced Options', open=True):
                     with gr.Row():
@@ -479,15 +480,17 @@ def ui():
                 input_ids = shared.tokenizer.encode(prompt, truncation=True, max_length=8192)
                 labels = [1] * len(input_ids)
                 input_ids = torch.tensor(input_ids)
+                pad_token_id = shared.tokenizer.pad_token_id
                 return {
                     "input_ids": input_ids,
                     "labels": labels,
-                    "attention_mask": input_ids.ne(shared.tokenizer.pad_token_id),
+                    "attention_mask": input_ids.ne(pad_token_id),
                 }
 
             def generate_and_tokenize_prompt(data_point):
                 prompt = generate_prompt(data_point)
                 return tokenize_dummy(prompt)
+            
           
             data_keys = [] 
 
@@ -497,6 +500,10 @@ def ui():
                     print("Data Keys:", data_keys)
             else:
                 print("The dataset is empty.")
+
+            if shared.tokenizer.pad_token_id is None:
+                print("Missing pad ID - setting to 0")
+                shared.tokenizer.pad_token_id = 0
 
             train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
             total_blocks = train_data.num_rows
@@ -718,6 +725,24 @@ def get_datasets(path: str, ext: str):
 def do_interrupt():
     global WANT_INTERRUPT
     WANT_INTERRUPT = True
+
+def reload_model_local():
+    try:
+        modelname = shared.model_name
+        unload_model()
+        shared.model_name = modelname
+
+        if shared.model_name != '':
+            shared.model, shared.tokenizer = load_model(shared.model_name, shared.args.loader)
+
+        if shared.model is not None:
+            print(f"Successfully reloaded  `{shared.model_name}`.")
+        else:
+            print(f"Failed to reload `{shared.model_name}`.")
+    except:
+        exc = traceback.format_exc()
+        logger.error('Failed to load the model.')
+        print(exc)
 
 
 def do_copy_params(lora_name: str, all_params):
@@ -1101,7 +1126,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             print("\033[1;31;1m(Model has been modified by previous training, it needs to be reloaded...)\033[0;37;0m")
             try:
                 yield f"Reloading {selected_model}...", zero_pd
-                reload_model()
+                reload_model_local()
                 shared.tokenizer.pad_token_id = 0
                 shared.tokenizer.padding_side = "left"
 
@@ -1142,6 +1167,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
         return list(lora_module_names)    
 
+    model_to_lora_modules[model_id] = ["q_proj", "v_proj"]
+
     if training_projection==train_choices[0]:
         model_to_lora_modules[model_id] = ["gate_proj","down_proj","up_proj","q_proj","k_proj","v_proj","o_proj"]
     elif training_projection==train_choices[1]:
@@ -1151,7 +1178,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     elif training_projection==train_choices[3]:
         model_to_lora_modules[model_id] = ["k_proj", "v_proj", "down_proj"]        
     else:
-        model_to_lora_modules[model_id] = ["q_proj", "v_proj"]
+        model_to_lora_modules[model_id] = ["q_proj", "v_proj"]        
+        
  
     if lora_target_linear:
         linear_names = find_all_linear_names(shared.model)
@@ -1328,10 +1356,10 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                         json.dump(train_template, file, indent=2)
                 
                 epoch_int = int(state.epoch)
-                if epoch_int > stop_at_epoch and stop_at_epoch > 0:
+                if epoch_int > (stop_at_epoch - 1) and stop_at_epoch > 0:
                     control.should_epoch_stop = True
                     control.should_training_stop = True
-                    print(f"{RED}Stop at the end of Epoch {stop_at_epoch} reached.{RESET}")
+                    print(f"{RED}Stop at Epoch {stop_at_epoch} reached.{RESET}")
 
         def on_substep_end(self, args: transformers.TrainingArguments, state: transformers.TrainerState, control: transformers.TrainerControl, **kwargs):
             tracked.current_steps += 1
@@ -1551,6 +1579,25 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             logger.info("Log file 'train_dataset_sample.json' created in the 'logs' directory.")
         except Exception as e:
             logger.error(f"Failed to create log file due to error: {e}")
+
+    def dump_train_dataset(trainer):
+        decoded_entries = []
+        # Try to decode the entries and write the log file
+        try:
+            # Iterate over the first 10 elements in the dataset (or fewer if there are less than 10)
+            for i in range(len(trainer.train_dataset)):
+                decoded_text = shared.tokenizer.decode(trainer.train_dataset[i]['input_ids'])
+                decoded_text = decoded_text.replace('<unk>','')
+                decoded_entries.append({"value": decoded_text})
+
+            # Write the log file
+            Path('logs').mkdir(exist_ok=True)
+            with open(Path('logs/train_dataset_dump.json'), 'w') as json_file:
+                json.dump(decoded_entries, json_file, indent=4)
+
+            logger.info("Entire dataset was dumped to file: 'train_dataset_dump.json' created in the 'logs' directory.")
+        except Exception as e:
+            logger.error(f"Failed to create dump file due to error: {e}")
 
     def threaded_run():
         log_train_dataset(trainer)
