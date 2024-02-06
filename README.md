@@ -11,8 +11,13 @@ https://github.com/FartyPants/Training_PRO
 
 In general the repo is ahead (could be a few months) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested and stable, while the repo version adds many experimental features that could change shape in further weeks. 
 
+Note: to avoid issues with WebUi updates, put this repo in Training_PRO_wip folder and use Training_PRO_wip in Session, instead of the supllied Traing PRO that comes with WebUI
+
+![image](https://github.com/FartyPants/Training_PRO/assets/23346289/4778ceff-dd23-4121-ac84-10a0f1c2cd63)
+
 ## News
 
+- Hybrid Training (experimental) allows you to use instruct dataset AND Raw text file at the same time creating a hybrid finetune.
 - Ability to use JSONL (OpenAi) datasets. The format will be chosen automatically from the Template embedded in tokenizer (I did only rudimentary testing so far)
   ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/81fd0375-3fcb-45a0-a603-c9ad3b8359f9)
 - perlexity eval max_length from webui truncation_length_max
