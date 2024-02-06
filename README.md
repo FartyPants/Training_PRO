@@ -13,7 +13,7 @@ In general the repo is WAY ahead (could be a few months) of the Training PRO ext
 
 ## Installation:
 
-Since an oler version of Training PRO is included in WebUI, to avoid issues with WebUI updates, put this repo in Training_PRO_wip folder and use Training_PRO_wip in Session, instead of the supllied Traing PRO that comes with WebUI
+Since a stable version of Training PRO is included in WebUI, to avoid issues with WebUI updates, put this repo in Training_PRO_wip folder and use Training_PRO_wip in Session, instead of the supllied Traing PRO that comes with WebUI
 
 Clone repo to your extensions folder in Training_PRO_wip
 ```
