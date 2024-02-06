@@ -79,12 +79,13 @@ non_serialized_params = {
         "checkpoint_offset": 0,
         "epoch_offset":0,
         "safe_serialization": False,
+        "dump_dataset": False,
 }
 
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch","datasetJSONL", "eval_datasetJSONL", "eval_stepsJSONL"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch","datasetJSONL", "eval_datasetJSONL", "eval_stepsJSONL","hybrid_training"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -110,7 +111,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 24.01.19` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 24.02.06` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -230,6 +231,9 @@ def ui():
                         with gr.Column():
                             hard_cut_string = gr.Textbox(label='Hard Cut String', value='\\n\\n\\n', info='String that indicates a cut between logical blocks of text (ex. Ideas or Chapters). Helps prevent unwanted overlap between unrelated ideas.')
                             min_chars = gr.Number(label='Ignore small blocks', value=0, info='Ignore Text blocks that have less or equal characters than this number.')
+                with gr.Tab(label="Hybrid"):
+                    hybrid_training = gr.Checkbox(label='Allow Hybrid Training (Experimental)', value = False, info = 'Allow using Raw text file AND JSON or JSONL dataset at the same time.')
+                    gr.Markdown('This is an experimental training using both instruct and non-instruct data at once. You need to select Raw Text file AND JSON (plus appropriate Format) or JSONL dataset.\n\nA correct ratio of instruct/non-instruct data can be used to stylyze or modify the model instruction responses.')
                 with gr.Tab(label="URL"):
                     with gr.Row():
                         with gr.Column():
@@ -247,7 +251,13 @@ def ui():
                         with gr.Column():    
                             convert_system = gr.Textbox(label = 'Convert JSON to JSONL', info = 'Select JSON in JSON Dataset tab and add System Message:', value='You are a helpful AI assistant.', lines=2)
                             convert_do = gr.Button('Convert JSON to JSONL')
-
+                    with gr.Row():
+                        with gr.Column():
+                            convert_system2 = gr.Textbox(label = 'Simple TXT to JSONL conversion', info = 'Select TXT in Text File tab. Each item in txt should be separated by at least 3 empty lines. Enter system message:', value='You are a helpful AI assistant.', lines=1)
+                            convert_prompt2 = gr.Textbox(label = 'Prompt', info = 'Prompt that will be inserted for every item', value='Write me a limerick.', lines=1)
+                            convert_do2 = gr.Button('Convert TXT to JSONL')
+                        with gr.Column():
+                            dump_dataset = gr.Checkbox(label='Dump Training Dataset', value=False, info='Just before training begins, decode and dump the entire dataset into JSON file in /logs/')   
                 with gr.Row():
                     with gr.Column():
                         with gr.Row():
@@ -294,7 +304,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL ]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL, hybrid_training]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -340,17 +350,37 @@ def ui():
 
     save_chackpoint_now.click(trigger_save_checkpoint, None, None).then(update_button, None,save_chackpoint_now).then(update_button2, None,save_chackpoint_now)
 
-    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation, datasetJSONL]
+    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation, datasetJSONL, hybrid_training]
 
-    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int, datasetJSONL:str):
+    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int, datasetJSONL:str, hybrid_training:bool):
         result = "Specify JSON dastaset or Text file"
         total_blocks = 0
         if shared.tokenizer is None:
             yield "Tokenizer is not available. Please Load some Model first."
             return
         
-
+        # hybrid training hybrid_training
+        raw_text_used = False
+        hybrid_text_train_data = None
         max_length_tokens = 0
+        hybrid_total_text_blocks = 0
+
+        if hybrid_training == True:
+            print(f" === {RED}Hybrid Training{RESET} ===")
+            if raw_text_file not in ['None', '']:
+                if datasetJSONL not in ['None', '']:
+                    print(f" - Raw text + JSONL")
+                elif dataset not in ['None', '']:
+                    print(f" - Raw text + JSON")
+                else:
+                    print(f" - {RED}Error:{RESET} for Hybrid training you need Raw text AND JSONL or JSON dataset")
+                    yield "Missing dataset and raw file for hybrid training, cannot continue."
+                    return
+        
+            else:
+                print(f" - {RED}Error:{RESET} for Hybrid training you need JSONL or JSON dataset AND Raw text file.")    
+                yield "Missing dataset and raw file for hybrid training, cannot continue."
+                return        
         
         if raw_text_file not in ['None', '']:
             logger.info("Loading Text file...")
@@ -401,6 +431,10 @@ def ui():
 
 
             total_blocks = len(text_chunks)
+            hybrid_total_text_blocks = total_blocks
+            
+            if hybrid_training==False:
+                raw_text_used = True
 
             max_length = 0
             max_text = ''
@@ -417,7 +451,9 @@ def ui():
             max_length_tokens = 0
 
             del text_chunks
-        else:
+        
+        # datasets
+        if raw_text_used == False:
             data = None
             format_data: dict[str, str] = {}
             format_text = ''
@@ -521,8 +557,14 @@ def ui():
 
             max_length_tokens = max_length
 
-            result = f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len} tokens\nKeys: {data_keys}  {format_text}"
-            result += f"\nLongest Block: {max_length_tokens} tokens. Second Longest Block: {second_max_length} tokens."
+            if hybrid_training:
+                result = result+'\n'
+            else:
+                result = ''
+
+
+            result += f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len} tokens\nKeys: {data_keys}  {format_text}"
+            result += f"\nLongest Data Block: {max_length_tokens} tokens. Second Longest Block: {second_max_length} tokens."
 
             #for options, data in format_data.items():
             #    format_keys = options.split(',')
@@ -531,6 +573,12 @@ def ui():
             #result = result.rstrip(',')  
 
         if total_blocks>0:
+            
+            total_blocks = hybrid_total_text_blocks + total_blocks
+
+            if hybrid_training:
+               result += f"\n[Total number of Hybrid blocks: {total_blocks}]"
+
             number_ofSteps = int(math.ceil(total_blocks / micro_batch_size) * epochs) 
             num_stepsPer_epoch = int(math.ceil(number_ofSteps/epochs))
             min_warm = math.ceil(100 / grad_accumulation)
@@ -557,6 +605,7 @@ def ui():
             if gradient_accumulation_max < grad_accumulation: 
                 result += f"\n\nWARNING: Gradient Accumulation {grad_accumulation} is too high: It should be below {gradient_accumulation_max}"
 
+            result = result.strip()
 
         yield result
         return
@@ -663,7 +712,10 @@ def ui():
     def update_datasetJSONL():
         return gr.update(choices=get_datasets('training/datasets', 'jsonl')),gr.update(choices=get_datasets('training/datasets', 'jsonl'))
 
-    def convert_dataset(dataset, system_text):
+    def update_datasetJSON():
+        return gr.update(choices=get_datasets('training/datasets', 'json')),gr.update(choices=get_datasets('training/datasets', 'json'))
+
+    def convert_json_to_jsonl(dataset, system_text):
         if dataset == 'None' or dataset == '':
             print("No dataset selected in Formatted Datasets")
             return
@@ -700,6 +752,39 @@ def ui():
         with open(clean_path('training/datasets', dataset_json_new), 'w') as outfile:
             json.dump(converted_data, outfile, indent=2)
 
+    def convert_text_to_jsonl(textfile, system_text, prompt):
+        if textfile == 'None' or textfile == '':
+            print("No plain text selected in tab Text file")
+            return
+ 
+        dataset_json_new = f'{textfile}.jsonl'
+        dataset_txt = f'{textfile}.txt'
+      
+
+        with open(clean_path('training/datasets', dataset_txt), 'r', encoding='utf-8-sig') as f:
+            text = f.read().replace('\r', '')
+
+        text_list = text.split("\n\n\n")
+        
+        print(f"Converting {dataset_txt}...")    
+        converted_data = []
+            
+        for entry in text_list:
+            entry = entry.strip()
+            if entry!='':
+                converted_entry = {
+                    "messages": [
+                        {"role": "system", "content": system_text},
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": entry}
+                    ]
+                }
+                converted_data.append(converted_entry)
+
+        print(f"Saving {dataset_json_new}")
+        with open(clean_path('training/datasets', dataset_json_new), 'w') as outfile:
+            json.dump(converted_data, outfile, indent=2)
+
     def select_datasetJSONL(dataset):
         dataset_json_new = f'{dataset}.jsonl'
         pathJSONL = clean_path('training/datasets', dataset_json_new)
@@ -711,9 +796,24 @@ def ui():
            returnB = dataset_json_new.replace('.jsonl', '')
 
         return returnA, returnB
-          
 
-    convert_do.click(convert_dataset,[dataset,convert_system],None).then(update_datasetJSONL, None,[datasetJSONL,eval_datasetJSONL]).then(select_datasetJSONL, dataset,[dataset,datasetJSONL])
+    def select_datasetJSON(dataset):
+        dataset_json_new = f'{dataset}.json'
+        pathJSON = clean_path('training/datasets', dataset_json_new)
+        return_to_clear = 'None'
+        return_to_set = 'None'
+
+        if Path(pathJSON).is_file():
+           print(f"{dataset_json_new} file selected for training")
+           return_to_set = dataset_json_new.replace('.json', '')
+
+        return return_to_clear, return_to_set
+
+
+    convert_do.click(convert_json_to_jsonl,[dataset,convert_system],None).then(update_datasetJSONL, None,[datasetJSONL,eval_datasetJSONL]).then(select_datasetJSONL, dataset,[dataset,datasetJSONL])
+    convert_do2.click(convert_text_to_jsonl,[raw_text_file,convert_system2,convert_prompt2],None).then(update_datasetJSONL, None,[datasetJSONL,eval_datasetJSONL]).then(select_datasetJSONL, raw_text_file,[raw_text_file,datasetJSONL])
+
+    dump_dataset.change(lambda x: non_serialized_params.update({"dump_dataset": x}), dump_dataset, None)
 
 def get_datasets(path: str, ext: str):
     # include subdirectories for raw txt files to allow training from a subdirectory of txt files
@@ -828,7 +928,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int, hybrid_training:bool):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -955,6 +1055,28 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
    
     # END OF FPHAM SENTENCE SPLIT functions ===================     
 
+    # hybrid training hybrid_training
+    raw_text_used = False
+    hybrid_text_train_data = None
+
+    if hybrid_training == True:
+        print(f" === {RED}Hybrid Training{RESET} ===")
+        if raw_text_file not in ['None', '']:
+            if datasetJSONL not in ['None', '']:
+                print(f" - Raw text + JSONL")
+            elif dataset not in ['None', '']:
+                print(f" - Raw text + JSON")
+            else:
+                print(f" - {RED}Error:{RESET} for Hybrid training you need Raw text AND JSONL or JSON dataset")
+                yield "Missing dataset and raw file for hybrid training, cannot continue.", zero_pd
+                return
+    
+        else:
+            print(f" - {RED}Error:{RESET} for Hybrid training you need JSONL or JSON dataset AND Raw text file.")    
+            yield "Missing dataset and raw file for hybrid training, cannot continue.", zero_pd
+            return
+
+
     # == Prep the dataset, format, etc ==
     if raw_text_file not in ['None', '']:
         train_template["template_type"] = "raw_text"
@@ -1006,15 +1128,21 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         else:
             text_chunks = precise_cut(raw_text, precize_slicing_overlap, min_chars, add_EOS_to_HC, cutoff_len, hard_cut_string,non_serialized_params['debug_slicer'],EOS_token_str,BOS_token_str)
 
-        train_data = Dataset.from_list([tokenize(x, add_EOS_to_all, add_bos_token) for x in text_chunks])
+        if hybrid_training==True:
+            hybrid_text_train_data = Dataset.from_list([tokenize(x, add_EOS_to_all, add_bos_token) for x in text_chunks])
+        else:    
+            train_data = Dataset.from_list([tokenize(x, add_EOS_to_all, add_bos_token) for x in text_chunks])
+            raw_text_used  = True
+
         if add_EOS_to_all:
             print(f"Added EOS to {len(text_chunks)} blocks") 
 
         print(f"All Data Blocks: {len(text_chunks)}")
-
+        
         del text_chunks
         eval_data = None
-    else:
+    
+    if raw_text_used == False:
         data = None
         eval_data = None
         format_data: dict[str, str] = {}
@@ -1098,6 +1226,20 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
         train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
+        if hybrid_training==True and hybrid_text_train_data:
+            print(f"Merging Raw text ({len(hybrid_text_train_data)}) and dataset ({len(train_data)})")
+            merged_train_data = []
+            for example in train_data:
+                merged_train_data.append(example)
+            for example in hybrid_text_train_data:
+                merged_train_data.append(example)    
+
+
+            train_data = Dataset.from_list(merged_train_data)
+            num_items_after = len(train_data)
+            print(f"- Total after merge: {num_items_after} blocks")
+
+
         if eliminate_long_blocks:
             num_items_before = len(train_data)
             print(f"Filtering {num_items_before} blocks...")
@@ -1116,7 +1258,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             eval_data = eval_data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
 
         print(f"BOS: {add_bos_token} EOS: {add_eos_token}") 
-        print(f"Data Blocks: {len(train_data)}")
+        print(f"Final Data Blocks: {len(train_data)}")
 
 
     # == We MUST reload model if it went through any previous training, even failed one ==
@@ -1583,8 +1725,11 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     def dump_train_dataset(trainer):
         decoded_entries = []
         # Try to decode the entries and write the log file
+        # Get the current date and time as a string in 'YYYYMMDD_HHMM' format
+        mydate = datetime.now().strftime('%Y%m%d_%H%M')
+        dfname = f"{mydate}_dataset_dump.json"
         try:
-            # Iterate over the first 10 elements in the dataset (or fewer if there are less than 10)
+            logger.info("Dumping the current dataset before training starts... Wait ...")
             for i in range(len(trainer.train_dataset)):
                 decoded_text = shared.tokenizer.decode(trainer.train_dataset[i]['input_ids'])
                 decoded_text = decoded_text.replace('<unk>','')
@@ -1592,15 +1737,18 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
             # Write the log file
             Path('logs').mkdir(exist_ok=True)
-            with open(Path('logs/train_dataset_dump.json'), 'w') as json_file:
+            with open(Path(f'logs/{dfname}'), 'w') as json_file:
                 json.dump(decoded_entries, json_file, indent=4)
 
-            logger.info("Entire dataset was dumped to file: 'train_dataset_dump.json' created in the 'logs' directory.")
+            logger.info(f"The dataset was dumped to file:'{dfname}' created in the 'logs' directory.")
         except Exception as e:
             logger.error(f"Failed to create dump file due to error: {e}")
 
     def threaded_run():
         log_train_dataset(trainer)
+        if non_serialized_params['dump_dataset'] == True:
+            dump_train_dataset(trainer)
+
         trainer.train()
         # Note: save in the thread in case the gradio thread breaks (eg browser closed)
         lora_model.save_pretrained(lora_file_path, safe_serialization = non_serialized_params['safe_serialization'])
