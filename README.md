@@ -153,8 +153,9 @@ Those are the new type of datasets that have role defined. They expect the jinja
 >    ]
 >  },
 
+The format will be chosen autmatically from the chat Template embedded in the tokenizer metadata. If no format is specified (legacy) then the jinja instruction template specified in WebUI will be used
+
 ## hybrid training
 
 Did you wonder what would happen if you train partially on raw text and also on instruct dataset? Now you can with Hybrid training. Simply select both files - dataset (and format) and raw text file. And go!
-
-The format will be chosen autmatically from the chat Template embedded in the tokenizer metadata. If no format is specified (legacy) then the jinja instruction template specified in WebUI will be used
+What this will give you - IDK. Experiment. But in general it can stylize of instruct the response with the raw text file. Or do some other damage. No go test it.
