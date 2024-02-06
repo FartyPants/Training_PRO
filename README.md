@@ -27,6 +27,7 @@ Now use the Training_PRO_wip in Session, instead of the supllied Traing PRO
 ## News
 
 - Hybrid Training (experimental) allows you to use instruct dataset AND Raw text file at the same time creating a hybrid finetune.
+  ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/856922f8-9bb3-4be0-9d7b-c6727f5df84c)
 - Ability to use JSONL (OpenAi) datasets. The format will be chosen automatically from the Template embedded in tokenizer (I did only rudimentary testing so far)
   ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/81fd0375-3fcb-45a0-a603-c9ad3b8359f9)
 - perlexity eval max_length from webui truncation_length_max
@@ -45,7 +46,7 @@ Now use the Training_PRO_wip in Session, instead of the supllied Traing PRO
 
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/e389ec69-d7ad-4922-9ad9-865625997479)
 
-## Features/Changes
+## Features/Changes from Main Training in WebUI
 
 - Chunking: precise raw text slicer (PRTS) uses sentence slicing and making sure things are clean on all ends
 - overlap chunking - this special overlapping will make additional overlap block based on logical rules (aka no overlap block on hard cut)
@@ -149,5 +150,9 @@ Those are the new type of datasets that have role defined. They expect the jinja
 >      {"role": "assistant", "content": "Paris, as if everyone doesn't know that already."}
 >    ]
 >  },
+
+## hybrid training
+
+Did you wonder what would happen if you train partially on raw text and also on instruct dataset? Now you can with Hybrid training. Simply select both files - dataset (and format) and raw text file. And go!
 
 The format will be chosen autmatically from the chat Template embedded in the tokenizer metadata. If no format is specified (legacy) then the jinja instruction template specified in WebUI will be used
