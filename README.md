@@ -158,4 +158,4 @@ The format will be chosen autmatically from the chat Template embedded in the to
 ## hybrid training
 
 Did you wonder what would happen if you train partially on raw text and also on instruct dataset? Now you can with Hybrid training. Simply select both files - dataset (and format) and raw text file. And go!
-What this will give you - IDK. Experiment. But in general it can stylize of instruct the response with the raw text file. Or do some other damage. No go test it.
+What this will give you - IDK. Experiment. But in general it can stylize instruct response with the writing style of the raw text file. (Of course the correct ratio matters!) Or do some other damage. Now go and test it.
