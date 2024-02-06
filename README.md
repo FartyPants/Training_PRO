@@ -27,8 +27,10 @@ Now use the Training_PRO_wip in Session, instead of the supllied Traing PRO
 ## News
 
 - Hybrid Training (experimental) allows you to use instruct dataset AND Raw text file at the same time creating a hybrid finetune.
+  
   ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/856922f8-9bb3-4be0-9d7b-c6727f5df84c)
 - Ability to use JSONL (OpenAi) datasets. The format will be chosen automatically from the Template embedded in tokenizer (I did only rudimentary testing so far)
+
   ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/81fd0375-3fcb-45a0-a603-c9ad3b8359f9)
 - perlexity eval max_length from webui truncation_length_max
 - stop at epoch (can be changed during training)
