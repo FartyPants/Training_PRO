@@ -11,9 +11,11 @@ https://github.com/FartyPants/Training_PRO
 
 In general the repo is ahead (could be a few months) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested and stable, while the repo version adds many experimental features that could change shape in further weeks. 
 
-## Note: ## Since an oler version of Training PRO is included in WebUI, to avoid issues with WebUI updates, put this repo in Training_PRO_wip folder and use Training_PRO_wip in Session, instead of the supllied Traing PRO that comes with WebUI
+## Installation:
 
-Clone repo to your extensions folder
+Since an oler version of Training PRO is included in WebUI, to avoid issues with WebUI updates, put this repo in Training_PRO_wip folder and use Training_PRO_wip in Session, instead of the supllied Traing PRO that comes with WebUI
+
+Clone repo to your extensions folder in Training_PRO_wip
 ```
 cd text-generation-webui\extensions\
 git clone https://github.com/FartyPants/Training_PRO Training_PRO_wip
