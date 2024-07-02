@@ -80,12 +80,14 @@ non_serialized_params = {
         "epoch_offset":0,
         "safe_serialization": False,
         "dump_dataset": False,
+        "dump_dataset_remove_s": True,
 }
 
+mapped_prompts = 0
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch","datasetJSONL", "eval_datasetJSONL", "eval_stepsJSONL","hybrid_training"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch","datasetJSONL", "eval_datasetJSONL", "eval_stepsJSONL","hybrid_training", "hybrid_data_ratio","hybrid_text_ratio"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -111,7 +113,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 24.02.06` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 24.07.02` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -232,8 +234,11 @@ def ui():
                             hard_cut_string = gr.Textbox(label='Hard Cut String', value='\\n\\n\\n', info='String that indicates a cut between logical blocks of text (ex. Ideas or Chapters). Helps prevent unwanted overlap between unrelated ideas.')
                             min_chars = gr.Number(label='Ignore small blocks', value=0, info='Ignore Text blocks that have less or equal characters than this number.')
                 with gr.Tab(label="Hybrid"):
-                    hybrid_training = gr.Checkbox(label='Allow Hybrid Training (Experimental)', value = False, info = 'Allow using Raw text file AND JSON or JSONL dataset at the same time.')
-                    gr.Markdown('This is an experimental training using both instruct and non-instruct data at once. You need to select Raw Text file AND JSON (plus appropriate Format) or JSONL dataset.\n\nA correct ratio of instruct/non-instruct data can be used to stylyze or modify the model instruction responses.')
+                    hybrid_training = gr.Checkbox(label='Hybrid Training (Experimental)', value = False, info = 'Train using Raw text file AND JSON or JSONL dataset at the same time.')
+                    with gr.Row():
+                        hybrid_data_ratio = gr.Slider(value = 100, minimum=0, maximum=100,label='Percentage of Dataset used')
+                        hybrid_text_ratio = gr.Slider(value = 100, minimum=0, maximum=100,label='Percentage of Text file used')
+                    gr.Markdown('This is an experimental hybrid training using both instruct and non-instruct data at once. You need to select Raw Text file AND JSON or JSONL dataset.\n\nOptionally you can set a percentage of dataset / text to dial the correct model response.')
                 with gr.Tab(label="URL"):
                     with gr.Row():
                         with gr.Column():
@@ -257,7 +262,8 @@ def ui():
                             convert_prompt2 = gr.Textbox(label = 'Prompt', info = 'Prompt that will be inserted for every item', value='Write me a limerick.', lines=1)
                             convert_do2 = gr.Button('Convert TXT to JSONL')
                         with gr.Column():
-                            dump_dataset = gr.Checkbox(label='Dump Training Dataset', value=False, info='Just before training begins, decode and dump the entire dataset into JSON file in /logs/')   
+                            dump_dataset = gr.Checkbox(label='Dump Training Dataset', value=False, info='Just before training begins, decode and dump the entire dataset into JSON file in /logs/')
+                            dump_dataset_remove_s = gr.Checkbox(label='Clean up dump dataset', value=True, info='Removes BOS and EOS form the dump dataset')    
                 with gr.Row():
                     with gr.Column():
                         with gr.Row():
@@ -304,7 +310,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL, hybrid_training]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL, hybrid_training, hybrid_data_ratio, hybrid_text_ratio]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -350,9 +356,9 @@ def ui():
 
     save_chackpoint_now.click(trigger_save_checkpoint, None, None).then(update_button, None,save_chackpoint_now).then(update_button2, None,save_chackpoint_now)
 
-    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation, datasetJSONL, hybrid_training]
+    dataset_calc_params = [save_steps,micro_batch_size, epochs, cutoff_len, dataset, format, raw_text_file, warmup_steps, hard_cut_string, min_chars, precize_slicing_overlap,sliding_window,warmup_ratio,grad_accumulation, datasetJSONL, hybrid_training, hybrid_data_ratio, hybrid_text_ratio]
 
-    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int, datasetJSONL:str, hybrid_training:bool):
+    def check_dataset(save_steps:int, micro_batch_size: int, epochs: int, cutoff_len: int, dataset:str, format:str, raw_text_file:str, warmup_steps:int, hard_cut_string:str, min_chars:int, precize_slicing_overlap:bool,sliding_window:bool,warmup_ratio:float,grad_accumulation:int, datasetJSONL:str, hybrid_training:bool, hybrid_data_ratio:int, hybrid_text_ratio:int):
         result = "Specify JSON dastaset or Text file"
         total_blocks = 0
         if shared.tokenizer is None:
@@ -431,6 +437,7 @@ def ui():
 
 
             total_blocks = len(text_chunks)
+            
             hybrid_total_text_blocks = total_blocks
             
             if hybrid_training==False:
@@ -446,7 +453,13 @@ def ui():
             input_ids = shared.tokenizer.encode(max_text, truncation=True, max_length=8192)
             
             result = f"Text: ({raw_text_file}.txt) has {total_blocks} blocks (Block Size {cutoff_len} tokens)"
-            result += f"\nLongest Block: {len(input_ids)+1} tokens with cutoff {cutoff_len}"
+            result += f"\nLongest Plain Text Block: {len(input_ids)+1}"
+            
+            if hybrid_training == True:
+                num_text_to_keep = int(total_blocks * float(hybrid_text_ratio) / 100.0)
+                result += f"\nUsing {hybrid_text_ratio}% of text: ({num_text_to_keep}/{total_blocks}) blocks"
+                hybrid_total_text_blocks = num_text_to_keep
+
             #no suggestion for plaintext as it is set by cutoff_len anyway
             max_length_tokens = 0
 
@@ -491,6 +504,7 @@ def ui():
                     return
             
                 if shared.tokenizer.pad_token_id is None:
+                    print("Missing pad ID - setting to 0")
                     shared.tokenizer.pad_token_id = 0
 
                 with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
@@ -566,6 +580,11 @@ def ui():
             result += f"Dataset: ({dataset}.json) has {total_blocks} blocks @ length = {cutoff_len} tokens\nKeys: {data_keys}  {format_text}"
             result += f"\nLongest Data Block: {max_length_tokens} tokens. Second Longest Block: {second_max_length} tokens."
 
+            if hybrid_training == True:
+                num_data_to_keep = int(total_blocks * float(hybrid_data_ratio) / 100.0)
+                result += f"\nUsing {hybrid_data_ratio}% of dataset: ({num_data_to_keep}/{total_blocks}) blocks"
+                total_blocks = num_data_to_keep
+
             #for options, data in format_data.items():
             #    format_keys = options.split(',')
             #    result += f"{format_keys}, "
@@ -574,10 +593,10 @@ def ui():
 
         if total_blocks>0:
             
-            total_blocks = hybrid_total_text_blocks + total_blocks
-
-            if hybrid_training:
+            if hybrid_training == True:
+               total_blocks = hybrid_total_text_blocks + total_blocks
                result += f"\n[Total number of Hybrid blocks: {total_blocks}]"
+
 
             number_ofSteps = int(math.ceil(total_blocks / micro_batch_size) * epochs) 
             num_stepsPer_epoch = int(math.ceil(number_ofSteps/epochs))
@@ -814,6 +833,7 @@ def ui():
     convert_do2.click(convert_text_to_jsonl,[raw_text_file,convert_system2,convert_prompt2],None).then(update_datasetJSONL, None,[datasetJSONL,eval_datasetJSONL]).then(select_datasetJSONL, raw_text_file,[raw_text_file,datasetJSONL])
 
     dump_dataset.change(lambda x: non_serialized_params.update({"dump_dataset": x}), dump_dataset, None)
+    dump_dataset_remove_s.change(lambda x: non_serialized_params.update({"dump_dataset_remove_s": x}), dump_dataset_remove_s, None)
 
 def get_datasets(path: str, ext: str):
     # include subdirectories for raw txt files to allow training from a subdirectory of txt files
@@ -928,7 +948,7 @@ def calc_trainable_parameters(model):
 
 
 
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int, hybrid_training:bool):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int, hybrid_training:bool, hybrid_data_ratio:int, hybrid_text_ratio:int):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -985,15 +1005,94 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     #set it to zero fo new save
     batch_size = 0
 
-    gradient_accumulation_steps = grad_accumulation #batch_size // micro_batch_size
-    if shared.tokenizer.pad_token_id is None:
-        shared.tokenizer.pad_token_id = 0
+   # change: reload earlier
+    
+    # == We MUST reload model if it went through any previous training, even failed one ==
+    if shared.model_dirty_from_training:
+        selected_model = shared.model_name
+        if selected_model:
+            print("\033[1;31;1m(Model has been modified by previous training, it needs to be reloaded...)\033[0;37;0m")
+            try:
+                yield f"Reloading {selected_model}...", zero_pd
+                reload_model_local()
+                
+                if shared.tokenizer.pad_token_id is None:
+                    print("Missing pad_token_id ID - setting to 0")
+                    shared.tokenizer.pad_token_id = 0
 
+                shared.tokenizer.padding_side = "left"
+
+                if shared.model is not None:
+                    print("Model reloaded OK, continue with training.")
+                else:
+                    return f"Failed to load {selected_model}."
+            except:
+                exc = traceback.format_exc()
+                logger.error('Failed to reload the model.')
+                print(exc)
+                return exc.replace('\n', '\n\n')    
+    
+    # == check tokenizer ==
+    pad_token_id = None
+    pad_token = None
+    eos_token_id = None
+    eos_token = None
+
+    print (f"{YELLOW} Tokenizer check {RESET}")
+
+ 
+    if hasattr(shared.tokenizer, 'pad_token_id'):
+        if pad_token_id is None:
+            print("{RED} Missing pad_token_id - setting to 0 {RESET}")
+            shared.tokenizer.pad_token_id = 0
+
+        pad_token_id = shared.tokenizer.pad_token_id
+        pad_token = shared.tokenizer.convert_ids_to_tokens(pad_token_id)
+        #print(f" Pad Token string: {GREEN}{pad_token}{RESET}")
+       
+    if hasattr(shared.tokenizer, 'eos_token_id'):
+        eos_token_id = shared.tokenizer.eos_token_id
+
+    if hasattr(shared.tokenizer, 'eos_token'):
+        eos_token = shared.tokenizer.eos_token
+
+    if pad_token == '!': 
+        print(f"{RED} Patching WRONG PAD token from ! to <|end_of_text|> {RESET} (LLama 3)")
+        pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|end_of_text|>")
+        pad_token = "<|end_of_text|>"
+        shared.tokenizer.pad_token_id = pad_token_id
+        shared.tokenizer.pad_token = pad_token
+        
+
+ 
+    print(f" Pad Token id: {pad_token_id} {GREEN}{pad_token}{RESET} ")
+    print(f" EOS Token id: {eos_token_id} {GREEN}{eos_token}{RESET} ")
+
+    #LOG.debug(f"EOS: {tokenizer.eos_token_id} / {tokenizer.eos_token}")
+    #LOG.debug(f"BOS: {tokenizer.bos_token_id} / {tokenizer.bos_token}")
+    #LOG.debug(f"PAD: {tokenizer.pad_token_id} / {tokenizer.pad_token}")
+    #LOG.debug(f"UNK: {tokenizer.unk_token_id} / {tokenizer.unk_token}")
+
+    if pad_token_id == eos_token_id:
+        print(f"{RED}Pad Token is same as EOS Token. The model will not be able to generate EOS{RESET} ")
+
+
+    #shared.tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
+
+    gradient_accumulation_steps = grad_accumulation #batch_size // micro_batch_size
+    
+    # llama 3 padding should be "<|end_of_text|>" or <|reserved_special_token_0|>
     shared.tokenizer.padding_side = "left"
 
     def encode(text, prepend_bos_token):
        
-        result = shared.tokenizer.encode(text, truncation=True, max_length=cutoff_len)
+        mx_len = cutoff_len
+        
+        if eliminate_long_blocks:
+            mx_len = 8192
+
+        result = shared.tokenizer.encode(text, truncation=True, max_length=mx_len)
+        
         # Check if the first two tokens are BOS
         if len(result) >= 2 and result[:2] == [shared.tokenizer.bos_token_id, shared.tokenizer.bos_token_id]:
             result = result[1:]
@@ -1009,9 +1108,14 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
             if append_eos_token and input_ids[-1] != shared.tokenizer.eos_token_id and len(input_ids) < cutoff_len:
                 input_ids.append(shared.tokenizer.eos_token_id)
-
-            input_ids = [shared.tokenizer.pad_token_id] * (cutoff_len - len(input_ids)) + input_ids
             
+            len_before = len(input_ids)
+            # padding
+            if (cutoff_len - len(input_ids))> 0:
+                input_ids = [shared.tokenizer.pad_token_id] * (cutoff_len - len(input_ids)) + input_ids
+            
+            #print(f"{len_before} -> {len(input_ids)}")
+
             labels = [1] * len(input_ids)
         else:
             ind = prompt.index(train_only_after) + len(train_only_after)
@@ -1029,6 +1133,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
             input_ids = before_tokens + after_tokens
             labels = [-100] * len(before_tokens) + [1] * len(after_tokens)
+
+            #print(f"{len(input_ids)}")
 
         input_ids = torch.tensor(input_ids)
         return {
@@ -1212,6 +1318,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 train_template[prompt_key] = value
 
         def generate_prompt(data_point: dict[str, str]):
+            
             for options, data in format_data.items():
                 if set(options.split(',')) == set(x[0] for x in data_point.items() if (type(x[1]) is str and len(x[1].strip()) > 0)):
                     for key, val in data_point.items():
@@ -1221,38 +1328,64 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             raise RuntimeError(f'Data-point "{data_point}" has no keyset match within format "{list(format_data.keys())}"')
 
         def generate_and_tokenize_prompt(data_point):
+            global mapped_prompts
+            mapped_prompts = mapped_prompts + 1
             prompt = generate_prompt(data_point)
             return tokenize(prompt, add_eos_token, add_bos_token)
 
+
         train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
+        print(f"Rows: {train_data.num_rows}")
+        print(f"Tokenized Prompts: {mapped_prompts}")
 
         if hybrid_training==True and hybrid_text_train_data:
             print(f"Merging Raw text ({len(hybrid_text_train_data)}) and dataset ({len(train_data)})")
             merged_train_data = []
-            for example in train_data:
-                merged_train_data.append(example)
-            for example in hybrid_text_train_data:
-                merged_train_data.append(example)    
-
+            num_data_to_keep = int(len(train_data) * float(hybrid_data_ratio) / 100.0)
+            num_text_to_keep = int(len(hybrid_text_train_data) * float(hybrid_text_ratio) / 100.0)
+            
+            print(f" - Using {hybrid_data_ratio}% of dataset ({num_data_to_keep}/{len(train_data)}) blocks")
+            print(f" - Using {hybrid_text_ratio}% of text ({num_text_to_keep}/{len(hybrid_text_train_data)}) blocks")
+            count = 0
+            if hybrid_data_ratio > 0:
+                for example in train_data:
+                    merged_train_data.append(example)
+                    count += 1   
+                    if count >= num_data_to_keep and hybrid_data_ratio < 100:
+                        break
+            count = 0
+            if hybrid_text_ratio > 0:    
+                for example in hybrid_text_train_data:
+                    merged_train_data.append(example) 
+                    count += 1   
+                    if count >= num_text_to_keep and hybrid_text_ratio < 100:
+                        break
 
             train_data = Dataset.from_list(merged_train_data)
             num_items_after = len(train_data)
             print(f"- Total after merge: {num_items_after} blocks")
 
 
-        if eliminate_long_blocks:
-            num_items_before = len(train_data)
-            print(f"Filtering {num_items_before} blocks...")
-            filtered_train_data = []
-            for example in train_data:
+        #if eliminate_long_blocks:
+        # always filter
+        num_items_before = len(train_data)
+        print(f"Filtering {num_items_before} blocks...")
+        filtered_train_data = []
+        for example in train_data:
                 
-                if len(example['input_ids']) > 0:
-                    if example['input_ids'][0] == shared.tokenizer.pad_token_id:
-                        filtered_train_data.append(example)
+                #if len(example['input_ids']) > 0:
+                    #if example['input_ids'][0] == shared.tokenizer.pad_token_id:
+                        #filtered_train_data.append(example)
+            if len(example['input_ids']) == cutoff_len:
+                filtered_train_data.append(example)        
          
-            train_data = Dataset.from_list(filtered_train_data)
-            num_items_after = len(train_data)
-            print(f" - Eliminated {RED}{num_items_before - num_items_after} blocks{RESET} that were above  {cutoff_len} tokens cutoff:")
+        train_data = Dataset.from_list(filtered_train_data)
+        num_items_after = len(train_data)
+        if eliminate_long_blocks:
+            print(f" - Eliminated {RED}{num_items_before - num_items_after} blocks{RESET} that were above  {cutoff_len} tokens cutoff")
+        else:
+            print(f" - Eliminated {RED}{num_items_before - num_items_after} blocks{RESET} that were invalid")
+
 
         if eval_data is not None:  
             eval_data = eval_data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
@@ -1260,28 +1393,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         print(f"BOS: {add_bos_token} EOS: {add_eos_token}") 
         print(f"Final Data Blocks: {len(train_data)}")
 
-
-    # == We MUST reload model if it went through any previous training, even failed one ==
-    if shared.model_dirty_from_training:
-        selected_model = shared.model_name
-        if selected_model:
-            print("\033[1;31;1m(Model has been modified by previous training, it needs to be reloaded...)\033[0;37;0m")
-            try:
-                yield f"Reloading {selected_model}...", zero_pd
-                reload_model_local()
-                shared.tokenizer.pad_token_id = 0
-                shared.tokenizer.padding_side = "left"
-
-                if shared.model is not None:
-                    print("Model reloaded OK, continue with training.")
-                else:
-                    return f"Failed to load {selected_model}."
-            except:
-                exc = traceback.format_exc()
-                logger.error('Failed to reload the model.')
-                print(exc)
-                return exc.replace('\n', '\n\n')
-
+ 
     # == Start prepping the model itself ==
     if not hasattr(shared.model, 'lm_head') or hasattr(shared.model.lm_head, 'weight'):
         logger.info("Getting model ready...")
@@ -1681,6 +1793,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     if lora_all_param > 0:
         print(f"Trainable params: {lora_trainable_param:,d} ({RED}{100 * lora_trainable_param / lora_all_param:.4f} %{RESET}), All params: {lora_all_param:,d} (Model: {model_all_params:,d})")
 
+
     train_log.update({"base_model_name": shared.model_name})
     train_log.update({"base_model_class": shared.model.__class__.__name__})
     train_log.update({"base_loaded_in_4bit": getattr(lora_model, "is_loaded_in_4bit", False)})
@@ -1722,7 +1835,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         except Exception as e:
             logger.error(f"Failed to create log file due to error: {e}")
 
-    def dump_train_dataset(trainer):
+    def dump_train_dataset(trainer, remove_SYS):
         decoded_entries = []
         # Try to decode the entries and write the log file
         # Get the current date and time as a string in 'YYYYMMDD_HHMM' format
@@ -1733,7 +1846,12 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             for i in range(len(trainer.train_dataset)):
                 decoded_text = shared.tokenizer.decode(trainer.train_dataset[i]['input_ids'])
                 decoded_text = decoded_text.replace('<unk>','')
-                decoded_entries.append({"value": decoded_text})
+                if remove_SYS:
+                    decoded_text = decoded_text.replace('<s> ','')
+                    decoded_text = decoded_text.replace('<s>','')
+                    decoded_text = decoded_text.replace('</s>','')
+
+                decoded_entries.append({"text": decoded_text})
 
             # Write the log file
             Path('logs').mkdir(exist_ok=True)
@@ -1747,7 +1865,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     def threaded_run():
         log_train_dataset(trainer)
         if non_serialized_params['dump_dataset'] == True:
-            dump_train_dataset(trainer)
+            dump_train_dataset(trainer, non_serialized_params['dump_dataset_remove_s'])
 
         trainer.train()
         # Note: save in the thread in case the gradio thread breaks (eg browser closed)
