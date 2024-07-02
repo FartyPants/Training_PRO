@@ -24,6 +24,10 @@ Now use the Training_PRO_wip in Session, instead of the supllied Traing PRO
 
 ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/4778ceff-dd23-4121-ac84-10a0f1c2cd63)
 
+## Blog post
+How to convert JSON to JSONL to be used with jinja embedded templates
+https://ko-fi.com/post/Convert-JSON-to-JSONL-in-Training-PRO-W7W2100SMQ
+
 ## News
 
 July 2024
