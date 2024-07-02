@@ -26,6 +26,13 @@ Now use the Training_PRO_wip in Session, instead of the supllied Traing PRO
 
 ## News
 
+July 2024
+- patch for llama 3 padding 
+- changed how blocks are eliminated
+- shuffled code to make sure the model is reloaded first
+- Hybrid training parameters
+
+February 2024
 - Hybrid Training (experimental) allows you to use instruct dataset AND Raw text file at the same time creating a hybrid finetune.
   
   ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/856922f8-9bb3-4be0-9d7b-c6727f5df84c)
