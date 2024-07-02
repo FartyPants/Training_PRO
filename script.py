@@ -1043,7 +1043,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
  
     if hasattr(shared.tokenizer, 'pad_token_id'):
         if pad_token_id is None:
-            print("{RED} Missing pad_token_id - setting to 0 {RESET}")
+            print(f"{RED} Missing pad_token_id - setting to 0 {RESET}")
             shared.tokenizer.pad_token_id = 0
 
         pad_token_id = shared.tokenizer.pad_token_id
