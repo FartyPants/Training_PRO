@@ -31,11 +31,16 @@ July 2024
 - changed how blocks are eliminated
 - shuffled code to make sure the model is reloaded first
 - Hybrid training parameters
+- tools to convert from JSON to JSONL
+- dump entire dataset to log
+
+![image](https://github.com/FartyPants/Training_PRO/assets/23346289/2054b25f-d4d1-4b23-95dc-c55e738ec6f7)
+
+![image](https://github.com/FartyPants/Training_PRO/assets/23346289/ae61d3ab-5f6b-460c-97c1-ae763e8eca3a)
+
 
 February 2024
 - Hybrid Training (experimental) allows you to use instruct dataset AND Raw text file at the same time creating a hybrid finetune.
-  
-  ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/856922f8-9bb3-4be0-9d7b-c6727f5df84c)
 - Ability to use JSONL (OpenAi) datasets. The format will be chosen automatically from the Template embedded in tokenizer
 
   ![image](https://github.com/FartyPants/Training_PRO/assets/23346289/81fd0375-3fcb-45a0-a603-c9ad3b8359f9)
