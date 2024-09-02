@@ -294,7 +294,7 @@ def ui():
                         stride_length = gr.Slider(label='Stride', minimum=1, maximum=2048, value=512, step=1, info='Used to make the evaluation faster at the cost of accuracy. 1 = slowest but most accurate. 512 is a common value.')
 
                     with gr.Column():
-                        max_length = gr.Slider(label='max_length', minimum=0, maximum=shared.settings['truncation_length_max'], value=0, step=1, info='The context for each evaluation. If set to 0, the maximum context length for the model will be used.')
+                        max_length = gr.Number(label='max_length', precision=0, step=256, value=0, info='The context for each evaluation. If set to 0, the maximum context length for the model will be used.')
 
                 with gr.Row():
                     start_current_evaluation = gr.Button("Evaluate loaded model")
@@ -958,6 +958,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     
     global train_log_graph
     global WANT_INTERRUPT
+    global mapped_prompts
+
+    mapped_prompts = 0
     WANT_INTERRUPT = False
 
     statistics['loss'] = []
@@ -1332,7 +1335,6 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             mapped_prompts = mapped_prompts + 1
             prompt = generate_prompt(data_point)
             return tokenize(prompt, add_eos_token, add_bos_token)
-
 
         train_data = data['train'].map(generate_and_tokenize_prompt, new_fingerprint='%030x' % random.randrange(16**30))
         print(f"Rows: {train_data.num_rows}")
