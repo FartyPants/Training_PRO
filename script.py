@@ -3,6 +3,13 @@ import os
 os.environ["WANDB_MODE"] = "offline"
 # os.environ["WANDB_DISABLED"] = "true"
 
+import warnings
+
+warnings.filterwarnings(action = "ignore", message="torch.utils.checkpoint:")
+warnings.filterwarnings(action = "ignore", message="`do_sample` is set to `False`")
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
 import json
 import math
 import random
@@ -41,12 +48,6 @@ from peft.utils.other import \
 from transformers.models.auto.modeling_auto import (
     MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 )
-
-import warnings
-
-warnings.filterwarnings(action = "ignore", message="torch.utils.checkpoint:")
-warnings.filterwarnings(action = "ignore", message="`do_sample` is set to `False`")
-
 
 
 from modules import shared, utils
@@ -1712,6 +1713,12 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     
     #gradient_checkpointing=True
     #group_by_length 
+
+    # Fix training for mixed precision models
+    for param in shared.model.parameters():
+        if param.requires_grad:
+            param.data = param.data.float()
+
     
     args=transformers.TrainingArguments(
             report_to=report_to if report_to != "None" else None,
