@@ -30,6 +30,18 @@ https://ko-fi.com/post/Convert-JSON-to-JSONL-in-Training-PRO-W7W2100SMQ
 
 ## News
 
+January 2025
+- fix for gradient_checkpoint error when used without BnB
+- added new custom schedulers: 
+  FP_3Epoch_Raise_Hold_Fall: (min 3 epochs) 1st epoch sine, 2nd epoch Hold, rest of the epochs cosine
+  FP_step_decay_with_Warmup - every next epoch will halve the LR
+- Coninual Pretraining - adding lm_head and embed_tokens to the training
+  ![image](https://github.com/user-attachments/assets/ccf1a12a-2ad4-482a-87d4-0854c4c93a89)
+  This will do basically full finetune if used with All Linear and the LORA files will be huge
+  Also YOU have to use 8bit optimiser with this, otherwise it won't probably fit into your 24GB - so you need to use 4-bit BnB to load model, then select 8-bit Adam, like paged_adamw_8bit
+- paged_adamw_8bit and adamw_8bit added
+  
+
 July 2024
 - patch for llama 3 padding 
 - changed how blocks are eliminated
