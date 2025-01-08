@@ -37,8 +37,9 @@ January 2025
   FP_step_decay_with_Warmup - every next epoch will halve the LR
 - Coninual Pretraining - adding lm_head and embed_tokens to the training
   ![image](https://github.com/user-attachments/assets/ccf1a12a-2ad4-482a-87d4-0854c4c93a89)
-  This will do basically full finetune if used with All Linear and the LORA files will be huge
-  Also YOU have to use 8bit optimiser with this, otherwise it won't probably fit into your 24GB - so you need to use 4-bit BnB to load model, then select 8-bit Adam, like paged_adamw_8bit
+  
+  This will do basically sorta full finetune if used with All Linear Targets and the LORA files will be huge (size of the quantized model)
+  YOU have to use 8bit optimiser with this, otherwise it won't fit into your 24GB - so you need to use 4-bit BnB to load model, then select 8-bit Adam, like paged_adamw_8bit. You can tune LLAMA-3 8B if you are careful, with rank 16 or 32 and 2-4 batch and 256 context length.
 - paged_adamw_8bit and adamw_8bit added
   
 
