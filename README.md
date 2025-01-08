@@ -35,7 +35,7 @@ January 2025
 - added new custom schedulers: 
   FP_3Epoch_Raise_Hold_Fall: (min 3 epochs) 1st epoch sine, 2nd epoch Hold, rest of the epochs cosine
   FP_step_decay_with_Warmup - every next epoch will halve the LR
-- Coninual Pretraining - adding lm_head and embed_tokens to the training
+- Coninued Pretraining - adding lm_head and embed_tokens to the training
   ![image](https://github.com/user-attachments/assets/ccf1a12a-2ad4-482a-87d4-0854c4c93a89)
   
   This will do basically sorta full finetune if used with All Linear Targets and the LORA files will be huge (size of the quantized model)
