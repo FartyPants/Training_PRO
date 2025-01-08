@@ -88,7 +88,7 @@ mapped_prompts = 0
 
 MODEL_CLASSES = {v[1]: v[0] for v in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.items()}
 
-PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch","datasetJSONL", "eval_datasetJSONL", "eval_stepsJSONL","hybrid_training", "hybrid_data_ratio","hybrid_text_ratio"]
+PARAMETERS = ["lora_name", "always_override", "save_steps", "micro_batch_size", "batch_size", "epochs", "learning_rate", "lr_scheduler_type", "lora_rank", "lora_alpha", "lora_dropout", "cutoff_len", "dataset", "eval_dataset", "format", "eval_steps", "raw_text_file", "higher_rank_limit", "warmup_steps", "optimizer", "hard_cut_string", "train_only_after", "stop_at_loss", "add_eos_token", "min_chars", "report_to", "precize_slicing_overlap", "add_eos_token_type", "save_steps_under_loss", "add_bos_token", "training_projection","sliding_window","warmup_ratio","grad_accumulation","neft_noise_alpha","group_by_length","eliminate_long_blocks","lora_target_linear", "stop_at_epoch","datasetJSONL", "eval_datasetJSONL", "eval_stepsJSONL","hybrid_training", "hybrid_data_ratio","hybrid_text_ratio","lora_RS","lora_RS_alpha","lora_modulessave","use_grad_checkpoint"]
 WANT_INTERRUPT = False
 
 train_log = {}
@@ -114,7 +114,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 24.07.02` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 25.01.08` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -134,7 +134,12 @@ def ui():
                 with gr.Row():
                     with gr.Column():
                         lora_rank = gr.Slider(label='LoRA Rank', value=32, minimum=0, maximum=1024, step=4, info='Also called dimension count. Higher values = larger file, more content control. Smaller values = smaller file, less control. Use 4 or 8 for style, 128 or 256 to teach, 1024+ for fine-detail on big data. More VRAM is needed for higher ranks.')
-                        lora_alpha = gr.Slider(label='LoRA Alpha', value=64, minimum=0, maximum=2048, step=4, info='This divided by the rank becomes the scaling of the LoRA. Higher means stronger. A good standard value is twice your Rank.')
+                        lora_alpha = gr.Slider(label='LoRA Alpha', value=64, minimum=0, maximum=2048, step=4, info='Alpha determines Scaling of the LoRA. A good standard value is 1x-2x of Rank. scale = LORA_alpha/rank')
+                        with gr.Accordion(label='Rank Stabilised LoRA', open=False):
+                            with gr.Row():
+                                lora_RS = gr.Checkbox(label='Use rsLoRA', value=False, info='scale = rsLoRA_Alpha/sqrt(rank)')
+                                lora_RS_alpha = gr.Number(label='rsLoRA Alpha', value=16) 
+                                             
                         batch_size = gr.Slider(visible= False, label='Batch Size', value=0, minimum=0, maximum=1024, step=4, info='Now Replaced with Gradient accumulation. Keeping it for sake of old saved data')
                         micro_batch_size = gr.Slider(label='True Batch Size', value=4, minimum=1, maximum=128, step=1, info='Specifies how many text blocks per step will be trained. The higher value, the better the concept of training will be, but it requires more GPU memory and it reduces speed.')
                         grad_accumulation = gr.Slider(label='Gradient Accumulation Steps', value=1, minimum=1, maximum=256, step=1, info="Virtually multiplies the Batch Size by averaging the learning over more than one step. VRAM friendly. Evens out loss fluctuations but can also degrade training fidelity.")
@@ -142,7 +147,7 @@ def ui():
                     with gr.Column():
                         epochs = gr.Number(label='Epochs', value=3, info='Number of times every entry in the dataset should be fed into training. So 1 means feed each item in once, 5 means feed it in five times, etc.')
                         learning_rate = gr.Textbox(label='Learning Rate', value='3e-4', info='In scientific notation. 3e-4 is a good starting base point. 1e-2 is extremely high, 1e-6 is extremely low.')
-                        lr_scheduler_type = gr.Dropdown(label='LR Scheduler', value='linear', choices=['linear', 'constant', 'constant_with_warmup', 'cosine', 'cosine_with_restarts', 'polynomial', 'inverse_sqrt', 'FP_low_epoch_annealing', 'FP_half_time_annealing','FP_raise_fall_creative'], info='Learning rate scheduler - defines how the learning rate changes over time. Custom schedulers: FP_low_epoch_annealing, FP_half_time_annealing, FP_raise_fall_creative (see README)', elem_classes=['slim-dropdown'])
+                        lr_scheduler_type = gr.Dropdown(label='LR Scheduler', value='linear', choices=['linear', 'constant', 'constant_with_warmup', 'cosine', 'cosine_with_restarts', 'polynomial', 'inverse_sqrt', 'FP_low_epoch_annealing', 'FP_half_time_annealing','FP_raise_fall_creative','FP_3epoch_raise_hold_fall','FP_step_decay_with_warmup'], info='Learning rate scheduler - defines how the learning rate changes over time. (FP_ = my Own Custom schedulers)', elem_classes=['slim-dropdown'])
                         
                 with gr.Accordion(label='Checkpoints', open=True):
                     with gr.Row():
@@ -166,9 +171,14 @@ def ui():
                             warmup_ratio = gr.Slider(label='Warmup Ratio', minimum=0.0, maximum=0.2, step=0.025, value=0.0, info='Ratio of total training steps that will be used for a linear warmup. It applies only if Warmup Step is 0.')
                             neft_noise_alpha = gr.Slider(label='NEFtune noise scale', minimum=0.0, maximum=15, step=1, value=0.0, info='Add noise to the training to improve generalization. [0 - OFF, Starting value to experiment: 5]')
                             training_projection = gr.Radio(value = train_choices[4], label='LLaMA Target Projections', info='Change the targets (LORA is typically q-v)', choices=train_choices)
-                            lora_target_linear = gr.Checkbox(label='All Linear Targets', value=False, info='Use all linear targets in the model')
+                            with gr.Accordion(label ='Continued Pretraining',open = False):
+                                with gr.Row():
+                                    lora_target_linear = gr.Checkbox(label='All Linear Targets', value=False, info='Use all linear targets in the model')
+                                    lora_modulessave = gr.Checkbox(label='Train Head', value=False, info='Heavy Finetune"')
+                                gr.Markdown('If you use Train Head, you should use 8-bit AdamW optimizer (paged_adamw_8bit), or your puny VRAM will explode. With 4-bit BnB and Rank 16 you COULD pretrain 8B model on 24GB VRAM.')
+                            use_grad_checkpoint = gr.Checkbox(label='Use Gradient Checkpoint', value=False, info='Reduces memory usage but increase computation time')
                             lora_dropout = gr.Slider(label='LoRA Dropout', minimum=0.0, maximum=1.0, step=0.025, value=0.05, info='Percentage probability for dropout of LoRA layers. This can help reduce overfitting. Most users should leave at default.')
-                            optimizer = gr.Dropdown(label='Optimizer', value='adamw_torch', choices=['adamw_hf', 'adamw_torch', 'adamw_torch_fused', 'adamw_torch_xla', 'adamw_apex_fused', 'adafactor', 'adamw_bnb_8bit', 'adamw_anyprecision', 'sgd', 'adagrad'], info='Different optimizer implementation options, for advanced users. Effects of different options are not well documented yet.', elem_classes=['slim-dropdown'])
+                            optimizer = gr.Dropdown(label='Optimizer', value='adamw_torch', choices=['adamw_hf', 'adamw_torch', 'adamw_torch_fused', 'adamw_torch_xla', 'adamw_apex_fused', 'adafactor', 'adamw_bnb_8bit', 'adamw_anyprecision', 'sgd', 'adagrad','adamw_8bit','paged_adamw_8bit'], info='Different optimizer implementation options, for advanced users. Effects of different options are not well documented yet.', elem_classes=['slim-dropdown'])
 
                         with gr.Column():
                             train_only_after = gr.Textbox(label='Train Only After', value='', info='Only consider text *after* this string in any given chunk for training. For Alpaca datasets, use "### Response:" to only train the response and ignore the input.')
@@ -311,7 +321,7 @@ def ui():
             refresh_table = gr.Button('Refresh the table', elem_classes="small-button")
 
     # Training events
-    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL, hybrid_training, hybrid_data_ratio, hybrid_text_ratio]
+    all_params = [lora_name, always_override, save_steps, micro_batch_size, batch_size, epochs, learning_rate, lr_scheduler_type, lora_rank, lora_alpha, lora_dropout, cutoff_len, dataset, eval_dataset, format, eval_steps, raw_text_file, higher_rank_limit, warmup_steps, optimizer, hard_cut_string, train_only_after, stop_at_loss, add_eos_token, min_chars, report_to, precize_slicing_overlap, add_eos_token_type, save_steps_under_loss, add_bos_token, training_projection,sliding_window,warmup_ratio,grad_accumulation, neft_noise_alpha,group_by_length,eliminate_long_blocks,lora_target_linear, stop_at_epoch, datasetJSONL, eval_datasetJSONL, eval_stepsJSONL, hybrid_training, hybrid_data_ratio, hybrid_text_ratio,lora_RS,lora_RS_alpha,lora_modulessave,use_grad_checkpoint]
 
     def fix_old_version(batch_size_val,micro_batch_size_val, grad_accumulation_val):
         if batch_size_val>0:
@@ -947,9 +957,7 @@ def calc_trainable_parameters(model):
 
     return trainable_params, all_param
 
-
-
-def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int, hybrid_training:bool, hybrid_data_ratio:int, hybrid_text_ratio:int):
+def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int, hybrid_training:bool, hybrid_data_ratio:int, hybrid_text_ratio:int,lora_RS:bool,lora_RS_alpha:int,lora_modulessave:bool,use_grad_checkpoint:bool):
 
     if shared.args.monkey_patch:
         from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
@@ -1401,7 +1409,12 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     if not hasattr(shared.model, 'lm_head') or hasattr(shared.model.lm_head, 'weight'):
         logger.info("Getting model ready...")
         # here we can disable gradient checkpoint, by default = true,  use_gradient_checkpointing=True
-        prepare_model_for_kbit_training(shared.model)
+        # if bnb
+        if 'quantization_config' in shared.model.config.to_dict():
+            print(f"Method: {RED}QLORA{RESET}")
+            prepare_model_for_kbit_training(shared.model)
+        else:
+            print(f"Method: {RED}LoRA{RESET}")
 
     # base model is now frozen and should not be reused for any other LoRA training than this one
     shared.model_dirty_from_training = True
@@ -1446,21 +1459,51 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     logger.info("Preparing for training...")
     # == Create LoRA config ==
    
+ 
+    modules_save = None
+    real_alpha = lora_alpha
+
+
     # modules_to_save = ["lm_head", "embed_tokens"]
     # If you added new tokens to the tokenizer, you may need to save some LoRA modules because they need to know the new tokens.
     # For LLaMA and Mistral, you need to save `embed_tokens` and `lm_head`. It may vary for other models.
     # `embed_tokens` converts tokens to embeddings, and `lm_head` converts embeddings to token probabilities.
 
-    modules_save = None
+    if lora_modulessave:
+
+        print (f"{YELLOW}Trying Full Finetune in lm_head and embed_tokens{RESET}")
+
+        if not hasattr(shared.model, 'lm_head'):
+            print(f"{RED}Model error: this model doesn't have lm_head {RESET} You need a foundation base Mistral or LLama model")
+        else:
+            print(f"Model has lm_head:{GREEN} OK {RESET}")
+
+        modules_save=["lm_head","embed_tokens"]
+        #check if optimizer has "_8bit" substring
+        if optimizer.find("_8bit") == -1:
+            print(f"{RED}VRAM Warning: Using lm_head and embed_tokens for training. It's recomended to use 8bit Adam optimizer. Current optimizer: {optimizer}{RESET}")
+
+    scalling = real_alpha/lora_rank
+
+    if lora_RS:
+        
+        print(f"{RED}Using RS LoRA{RESET} with alpha: {lora_RS_alpha}")
+        real_alpha = lora_RS_alpha
+        if real_alpha < 1: 
+            real_alpha = 1
+        scalling = real_alpha / math.sqrt(lora_rank)
+    
+    print(f"Training Scaling: {scalling}")
 
     config = LoraConfig(
         r=lora_rank,
-        lora_alpha=lora_alpha,
+        lora_alpha=real_alpha,
         target_modules=model_to_lora_modules[model_id],
         lora_dropout=lora_dropout,
         bias="none",
         task_type="CAUSAL_LM",
         modules_to_save=modules_save,
+        use_rslora=lora_RS,
     )
 
     # == Backup the existing adapter ==
@@ -1472,7 +1515,16 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
     try:
         logger.info("Creating LoRA model...")
+
+        if use_grad_checkpoint:
+            shared.model.enable_input_require_grads()
+
+    
+        torch.cuda.empty_cache()
+
         lora_model = get_peft_model(shared.model, config)
+
+        
         if not always_override and Path(f"{lora_file_path}/adapter_model.bin").is_file():
             logger.info("Loading existing LoRA data...")
             state_dict_peft = torch.load(f"{lora_file_path}/adapter_model.bin")
@@ -1710,6 +1762,12 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     elif lr_scheduler_type =='FP_raise_fall_creative':
         custom_scheduller = True
         lr_scheduler_type_arg = 'constant_with_warmup'
+    elif lr_scheduler_type =='FP_3epoch_raise_hold_fall':
+        custom_scheduller = True
+        lr_scheduler_type_arg = 'linear'
+    elif lr_scheduler_type =='FP_step_decay_with_warmup':
+        custom_scheduller = True
+        lr_scheduler_type_arg = 'cosine_with_restarts'
     
     #gradient_checkpointing=True
     #group_by_length 
@@ -1719,7 +1777,8 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         if param.requires_grad:
             param.data = param.data.float()
 
-    
+    #lora_model.gradient_checkpointing_enable()  
+      
     args=transformers.TrainingArguments(
             report_to=report_to if report_to != "None" else None,
             per_device_train_batch_size=micro_batch_size,
@@ -1740,7 +1799,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
             ddp_find_unused_parameters=None,
             no_cuda=shared.args.cpu,
             group_by_length = group_by_length,
-            gradient_checkpointing=True,
+            gradient_checkpointing=use_grad_checkpoint,
         )
 
     if custom_scheduller:
