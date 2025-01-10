@@ -114,7 +114,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 # YY.MM.DD
-                gr.Markdown("`Ver: 25.01.08` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
+                gr.Markdown("`Ver: 25.01.10` This is enhanced version of QLora Training. [Maintained by FP](https://github.com/FartyPants/Training_PRO/tree/main)")
 
                 with gr.Row():
                     with gr.Column(scale=5):
@@ -174,7 +174,7 @@ def ui():
                             with gr.Accordion(label ='Continued Pretraining',open = False):
                                 with gr.Row():
                                     lora_target_linear = gr.Checkbox(label='All Linear Targets', value=False, info='Use all linear targets in the model')
-                                    lora_modulessave = gr.Checkbox(label='Train Head', value=False, info='Heavy Finetune"')
+                                    lora_modulessave = gr.Checkbox(label='Train Head', value=False, info='Train lm_head and embed_tokens')
                                 gr.Markdown('If you use Train Head, you should use 8-bit AdamW optimizer (paged_adamw_8bit), or your puny VRAM will explode. With 4-bit BnB and Rank 16 you COULD pretrain 8B model on 24GB VRAM.')
                             use_grad_checkpoint = gr.Checkbox(label='Use Gradient Checkpoint', value=False, info='Reduces memory usage but increase computation time')
                             lora_dropout = gr.Slider(label='LoRA Dropout', minimum=0.0, maximum=1.0, step=0.025, value=0.05, info='Percentage probability for dropout of LoRA layers. This can help reduce overfitting. Most users should leave at default.')
@@ -1050,7 +1050,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     eos_token_id = None
     eos_token = None
 
-    print (f"{YELLOW} Tokenizer check {RESET}")
+    print (f"{YELLOW} Tokenizer safety check {RESET}")
 
  
     if hasattr(shared.tokenizer, 'pad_token_id'):
@@ -1060,7 +1060,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
         pad_token_id = shared.tokenizer.pad_token_id
         pad_token = shared.tokenizer.convert_ids_to_tokens(pad_token_id)
-        #print(f" Pad Token string: {GREEN}{pad_token}{RESET}")
+        print(f" Pad Token id from tokenizer: {pad_token_id} {GREEN}{pad_token}{RESET} ")
        
     if hasattr(shared.tokenizer, 'eos_token_id'):
         eos_token_id = shared.tokenizer.eos_token_id
@@ -1069,14 +1069,51 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         eos_token = shared.tokenizer.eos_token
 
     if pad_token == '!': 
-        print(f"{RED} Patching WRONG PAD token from ! to <|end_of_text|> {RESET} (LLama 3)")
-        pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|end_of_text|>")
-        pad_token = "<|end_of_text|>"
-        shared.tokenizer.pad_token_id = pad_token_id
-        shared.tokenizer.pad_token = pad_token
-        
+        print(f"{RED} Patching PAD token from 0 to <|finetune_right_pad_id|> {RESET} (LLama 3)")
+        pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|finetune_right_pad_id|>")
+        pad_token = "<|finetune_right_pad_id|>"
 
+        if pad_token_id is None:
+            print(f"{RED} (failed) Patching PAD token to <|endoftext|> {RESET} (Qwen)")
+            pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|endoftext|>")
+            pad_token = "<|endoftext|>"
+
+        if pad_token_id is None:
+            print(f"{RED} (failed) Patching PAD token to <|end_of_text|> {RESET} (Llama)")
+            pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|end_of_text|>")
+            pad_token = "<|end_of_text|>"
+
+        if pad_token_id is None:
+            print(f"{RED} (failed) Patching PAD token to {eos_token} {RESET} (Qwen)")
+            pad_token_id = eos_token_id
+            pad_token = eos_token
+
+        # save it to shared
+        if hasattr(shared.tokenizer, 'pad_token_id'):
+            shared.tokenizer.pad_token_id = pad_token_id
+
+        if hasattr(shared.tokenizer, 'pad_token'):   
+            shared.tokenizer.pad_token = pad_token
+        
+    # I give up!
+    if pad_token_id is None:
+        print(f"{RED} Giving up on PAD token - setting it as 0 {RESET}")
+        pad_token_id = 0
+        pad_token = shared.tokenizer.convert_ids_to_tokens(pad_token_id)
  
+    if eos_token_id is None:
+        print(f"{RED} EOS token is missing - that's not good {RESET}")
+        eos_token_id = shared.tokenizer.convert_tokens_to_ids("<|end_of_text|>")
+        eos_token = "<|end_of_text|>"
+
+    if eos_token_id is None:
+        print(f"{RED} Tokenizer is seriously broken!{RESET}")
+        print(f"{RED} Last chance to make it running setting EOS as PAD {RESET}")
+        eos_token_id = pad_token_id
+        eos_token = pad_token
+
+
+
     print(f" Pad Token id: {pad_token_id} {GREEN}{pad_token}{RESET} ")
     print(f" EOS Token id: {eos_token_id} {GREEN}{eos_token}{RESET} ")
 
@@ -1086,7 +1123,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     #LOG.debug(f"UNK: {tokenizer.unk_token_id} / {tokenizer.unk_token}")
 
     if pad_token_id == eos_token_id:
-        print(f"{RED}Pad Token is same as EOS Token. The model will not be able to generate EOS{RESET} ")
+        print(f"{RED}Pad Token is same as EOS Token. The fine-tune might have issue generating EOS{RESET} ")
 
 
     #shared.tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
