@@ -381,6 +381,7 @@ def ui():
         hybrid_text_train_data = None
         max_length_tokens = 0
         hybrid_total_text_blocks = 0
+        totl_size_in_tokens = 0
 
         if hybrid_training == True:
             print(f" === {RED}Hybrid Training{RESET} ===")
@@ -456,16 +457,22 @@ def ui():
 
             max_length = 0
             max_text = ''
+            # calculate total size
+            total_size = 0
             for example in text_chunks:
                 if len(example) > max_length:
                     max_length = len(example)
                     max_text = example
+                total_size += len(example)
 
             input_ids = shared.tokenizer.encode(max_text, truncation=True, max_length=8192)
+
+            # for english
+            totl_size_in_tokens = total_size*1.53 
             
             result = f"Text: ({raw_text_file}.txt) has {total_blocks} blocks (Block Size {cutoff_len} tokens)"
             result += f"\nLongest Plain Text Block: {len(input_ids)+1}"
-            
+             
             if hybrid_training == True:
                 num_text_to_keep = int(total_blocks * float(hybrid_text_ratio) / 100.0)
                 result += f"\nUsing {hybrid_text_ratio}% of text: ({num_text_to_keep}/{total_blocks}) blocks"
@@ -571,9 +578,11 @@ def ui():
 
             max_length = 0
             second_max_length = 0
+            total_size_tk = 0
 
             for example in train_data:
-                length = len(example['input_ids'])    
+                length = len(example['input_ids'])
+                total_size_tk += length    
                 if length > max_length:
                     second_max_length = max_length
                     max_length = length
@@ -581,6 +590,7 @@ def ui():
                     second_max_length = length
 
             max_length_tokens = max_length
+            totl_size_in_tokens = totl_size_in_tokens + total_size_tk
 
             if hybrid_training:
                 result = result+'\n'
@@ -609,6 +619,8 @@ def ui():
                result += f"\n[Total number of Hybrid blocks: {total_blocks}]"
 
 
+            result += f"\n[Total Number of Tokens (sum): {totl_size_in_tokens}]" 
+
             number_ofSteps = int(math.ceil(total_blocks / micro_batch_size) * epochs) 
             num_stepsPer_epoch = int(math.ceil(number_ofSteps/epochs))
             min_warm = math.ceil(100 / grad_accumulation)
@@ -620,20 +632,23 @@ def ui():
             save_each_n_max = int(math.ceil(number_ofSteps/5))
             gradient_accumulation_max = int(total_blocks)//micro_batch_size
 
- 
             result += f"\n[Batch Size: {micro_batch_size}, Epochs: {epochs}, Gradient Accumulation: {grad_accumulation}]\n"
             result += f"Total number of steps: {number_ofSteps}\n"
             result += f"Steps per each Epoch: {num_stepsPer_epoch}\n"
             result += f"Suggestions:\n"
-            
+
             if max_length_tokens>0:
                 next_max_multiple = ((max_length_tokens + 31) // 32) * 32
                 result += f"Maximum context length: {next_max_multiple} (Current: {cutoff_len})\n"
 
             result += f"Checkpoints: Save every {save_each_n_min} - {save_each_n_max} steps (Current: {int(save_steps)})\n"
             result += f"Warmup steps: {warmup_steps_suggest} (Current: {int(warmup_steps)})"
+
+
+
             if gradient_accumulation_max < grad_accumulation: 
                 result += f"\n\nWARNING: Gradient Accumulation {grad_accumulation} is too high: It should be below {gradient_accumulation_max}"
+
 
             result = result.strip()
 
@@ -959,11 +974,12 @@ def calc_trainable_parameters(model):
 
 def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch_size: int, batch_size: int, epochs: int, learning_rate: str, lr_scheduler_type: str, lora_rank: int, lora_alpha: int, lora_dropout: float, cutoff_len: int, dataset: str, eval_dataset: str, format: str, eval_steps: int, raw_text_file: str, higher_rank_limit: bool, warmup_steps: int, optimizer: str, hard_cut_string: str, train_only_after: str, stop_at_loss: float, add_eos_token: bool, min_chars: int, report_to: str, precize_slicing_overlap: bool, add_eos_token_type: str, save_steps_under_loss: float, add_bos_token: bool, training_projection: str,sliding_window:bool,warmup_ratio:float, grad_accumulation: int,neft_noise_alpha:float, group_by_length:bool,eliminate_long_blocks:bool,lora_target_linear:bool, stop_at_epoch: float, datasetJSONL:str, eval_datasetJSONL:str, eval_stepsJSONL:int, hybrid_training:bool, hybrid_data_ratio:int, hybrid_text_ratio:int,lora_RS:bool,lora_RS_alpha:int,lora_modulessave:bool,use_grad_checkpoint:bool):
 
-    if shared.args.monkey_patch:
-        from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
-            replace_peft_model_with_int4_lora_model
-        )
-        replace_peft_model_with_int4_lora_model()
+
+#    if shared.args.monkey_patch:
+#        from alpaca_lora_4bit.monkeypatch.peft_tuners_lora_monkey_patch import (
+#            replace_peft_model_with_int4_lora_model
+#        )
+#        replace_peft_model_with_int4_lora_model()
     
     global train_log_graph
     global WANT_INTERRUPT
@@ -1005,9 +1021,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
         time.sleep(5)
 
-    if shared.args.loader == 'GPTQ-for-LLaMa' and not shared.args.monkey_patch:
-        yield "LoRA training with GPTQ-for-LLaMa requires loading with `--monkey-patch`", zero_pd
-        return
+#    if shared.args.loader == 'GPTQ-for-LLaMa' and not shared.args.monkey_patch:
+#        yield "LoRA training with GPTQ-for-LLaMa requires loading with `--monkey-patch`", zero_pd
+#        return
 
     if cutoff_len <= 0 or micro_batch_size <= 0 or actual_lr <= 0 or lora_rank <= 0 or lora_alpha <= 0:
         yield "Cannot input zeroes.", zero_pd
@@ -1074,9 +1090,9 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         pad_token = "<|finetune_right_pad_id|>"
 
         if pad_token_id is None:
-            print(f"{RED} (failed) Patching PAD token to <|endoftext|> {RESET} (Qwen)")
-            pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|endoftext|>")
-            pad_token = "<|endoftext|>"
+            print(f"{RED} (failed) Patching PAD token to <|vision_pad|> {RESET} (Qwen)")
+            pad_token_id = shared.tokenizer.convert_tokens_to_ids("<|vision_pad|>")
+            pad_token = "<|vision_pad|>"
 
         if pad_token_id is None:
             print(f"{RED} (failed) Patching PAD token to <|end_of_text|> {RESET} (Llama)")
@@ -1596,14 +1612,14 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
         yield traceback.format_exc().replace('\n', '\n\n'), zero_pd
         return
 
-    if shared.args.monkey_patch:
-        from alpaca_lora_4bit.autograd_4bit import Autograd4bitQuantLinear
-        from alpaca_lora_4bit.models import Linear4bitLt
-        for _, m in lora_model.named_modules():
-            if isinstance(m, Autograd4bitQuantLinear) or isinstance(m, Linear4bitLt):
-                if m.is_v1_model:
-                    m.zeros = m.zeros.half()
-                m.scales = m.scales.half()
+#    if shared.args.monkey_patch:
+#        from alpaca_lora_4bit.autograd_4bit import Autograd4bitQuantLinear
+#        from alpaca_lora_4bit.models import Linear4bitLt
+#        for _, m in lora_model.named_modules():
+#            if isinstance(m, Autograd4bitQuantLinear) or isinstance(m, Linear4bitLt):
+#                if m.is_v1_model:
+#                    m.zeros = m.zeros.half()
+#                m.scales = m.scales.half()
 
     class Tracked():
         def __init__(self):
