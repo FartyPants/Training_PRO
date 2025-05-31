@@ -29,6 +29,8 @@ How to convert JSON to JSONL to be used with jinja embedded templates
 https://ko-fi.com/post/Convert-JSON-to-JSONL-in-Training-PRO-W7W2100SMQ
 
 ## News
+May 2025
+- changed to the user_data folder WebUI seems to be using now
 
 January 2025
 - fix for gradient_checkpoint error when used without BnB
