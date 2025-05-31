@@ -33,6 +33,11 @@ from .custom_scheduler import FPSchedulerTrainer, FPNEFtuneTrainer
 from .matplotgraph import create_graph
 from .train_utils import get_available_loras_local, precise_cut, sliding_block_cut, download_file_from_url
 
+# this keeps changing lately so it is now a variable
+TRAINING_DATASET_FOLDER = 'user_data/training/datasets'
+TRAINING_FORMATS_FOLDER = 'user_data/training/formats'
+
+
 import bitsandbytes as bnb
 
 from datasets import Dataset, load_dataset, DatasetDict
@@ -202,26 +207,26 @@ def ui():
                     with gr.Row():
                         with gr.Column():
                             with gr.Row():
-                                dataset = gr.Dropdown(choices=get_datasets('training/datasets', 'json'), value='None', label='Dataset', info='The flexible dataset JSON file to use for training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
-                                create_refresh_button(dataset, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'json')}, 'refresh-button')
+                                dataset = gr.Dropdown(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json'), value='None', label='Dataset', info='The flexible dataset JSON file to use for training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                                create_refresh_button(dataset, lambda: None, lambda: {'choices': get_datasets(TRAINING_DATASET_FOLDER, 'json')}, 'refresh-button')
                             with gr.Row():
-                                eval_dataset = gr.Dropdown(choices=get_datasets('training/datasets', 'json'), value='None', label='Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
-                                create_refresh_button(eval_dataset, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'json')}, 'refresh-button')
+                                eval_dataset = gr.Dropdown(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json'), value='None', label='Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                                create_refresh_button(eval_dataset, lambda: None, lambda: {'choices': get_datasets(TRAINING_DATASET_FOLDER, 'json')}, 'refresh-button')
                         with gr.Column():
                             with gr.Row():
-                                format = gr.Dropdown(choices=get_datasets('training/formats', 'json'), value='None', label='Data Format', info='The format file used to decide how to format the JSON dataset input.', elem_classes=['slim-dropdown'])
-                                create_refresh_button(format, lambda: None, lambda: {'choices': get_datasets('training/formats', 'json')}, 'refresh-button')
+                                format = gr.Dropdown(choices=get_datasets(TRAINING_FORMATS_FOLDER, 'json'), value='None', label='Data Format', info='The format file used to decide how to format the JSON dataset input.', elem_classes=['slim-dropdown'])
+                                create_refresh_button(format, lambda: None, lambda: {'choices': get_datasets(TRAINING_FORMATS_FOLDER, 'json')}, 'refresh-button')
                             with gr.Row():
                                 eval_steps = gr.Number(label='Evaluate every n steps', value=100, info='If an evaluation dataset is given, test it every time this many steps pass.')
                 with gr.Tab(label='JSONL Dataset'):
                     with gr.Row():
                         with gr.Column():
                             with gr.Row():
-                                datasetJSONL = gr.Dropdown(choices=get_datasets('training/datasets', 'jsonl'), value='None', label='JSONL Dataset', info='JSONL dataset file to use for training. See OpenAI documentation.', allow_custom_value=True, elem_classes=['slim-dropdown'])
-                                create_refresh_button(datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'jsonl')}, 'refresh-button')
+                                datasetJSONL = gr.Dropdown(choices=get_datasets(TRAINING_DATASET_FOLDER, 'jsonl'), value='None', label='JSONL Dataset', info='JSONL dataset file to use for training. See OpenAI documentation.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                                create_refresh_button(datasetJSONL, lambda: None, lambda: {'choices': get_datasets(TRAINING_DATASET_FOLDER, 'jsonl')}, 'refresh-button')
                             with gr.Row():
-                                eval_datasetJSONL = gr.Dropdown(choices=get_datasets('training/datasets', 'jsonl'), value='None', label='JSONL Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
-                                create_refresh_button(eval_datasetJSONL, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'jsonl')}, 'refresh-button')
+                                eval_datasetJSONL = gr.Dropdown(choices=get_datasets(TRAINING_DATASET_FOLDER, 'jsonl'), value='None', label='JSONL Evaluation Dataset', info='The (optional) dataset file used to evaluate the model after training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                                create_refresh_button(eval_datasetJSONL, lambda: None, lambda: {'choices': get_datasets(TRAINING_DATASET_FOLDER, 'jsonl')}, 'refresh-button')
                         with gr.Column():
                             with gr.Row():
                                 gr.Markdown('The format will be chosen automatically from the chat template in tokenizer. If the tokenizer doesn\'t have chat template defined (legacy), select the correct template in the WebUI [Parameters - Instruction template]')
@@ -230,8 +235,8 @@ def ui():
 
                 with gr.Tab(label="Text file"):
                     with gr.Row():
-                        raw_text_file = gr.Dropdown(choices=get_datasets('training/datasets', 'txt'), value='None', label='Text file', info='The text file to use for training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
-                        create_refresh_button(raw_text_file, lambda: None, lambda: {'choices': get_datasets('training/datasets', 'txt')}, 'refresh-button')
+                        raw_text_file = gr.Dropdown(choices=get_datasets(TRAINING_DATASET_FOLDER, 'txt'), value='None', label='Text file', info='The text file to use for training.', allow_custom_value=True, elem_classes=['slim-dropdown'])
+                        create_refresh_button(raw_text_file, lambda: None, lambda: {'choices': get_datasets(TRAINING_DATASET_FOLDER, 'txt')}, 'refresh-button')
 
                     with gr.Row():
                         with gr.Column():
@@ -254,7 +259,7 @@ def ui():
                             download_file_url = gr.Textbox(label='Download JSON or txt file to datasets (or formats) folder', value='',info='The URL of a file to download. If on github, make sure you get url of the raw file (https://raw.githubusercontent.com/...). If huggin face, make sure the url has /resolve/ in it not /blob/')
                             with gr.Row():
                                 download_check_overwrite = gr.Checkbox(label='Overwrite', value=False, info='Overwrite if file exist')
-                                download_folder = gr.Radio(label="Destination", value='training/datasets', choices=['training/datasets', 'training/formats'], interactive=True)
+                                download_folder = gr.Radio(label="Destination", value=TRAINING_DATASET_FOLDER, choices=[TRAINING_DATASET_FOLDER, TRAINING_FORMATS_FOLDER], interactive=True)
                             download_button = gr.Button('Download')
                             download_status = gr.Textbox(label='Download Status', value='', interactive=False)
                 with gr.Tab(label="Tools"):
@@ -297,7 +302,7 @@ def ui():
         with gr.Row():
             with gr.Column():
                 models = gr.Dropdown(utils.get_available_models(), label='Models', multiselect=True)
-                evaluate_text_file = gr.Dropdown(choices=['wikitext', 'ptb', 'ptb_new'] + get_datasets('training/datasets', 'txt')[1:], value='wikitext', label='Input dataset', info='The text file on which the model will be evaluated. The first options are automatically downloaded: wikitext, ptb, and ptb_new. The next options are your local text files under training/datasets.')
+                evaluate_text_file = gr.Dropdown(choices=['wikitext', 'ptb', 'ptb_new'] + get_datasets(TRAINING_DATASET_FOLDER, 'txt')[1:], value='wikitext', label='Input dataset', info='The text file on which the model will be evaluated. The first options are automatically downloaded: wikitext, ptb, and ptb_new. The next options are your local text files under dataset folder.')
                 with gr.Row():
                     with gr.Column():
                         stride_length = gr.Slider(label='Stride', minimum=1, maximum=2048, value=512, step=1, info='Used to make the evaluation faster at the cost of accuracy. 1 = slowest but most accurate. 512 is a common value.')
@@ -400,7 +405,7 @@ def ui():
         
         if raw_text_file not in ['None', '']:
             logger.info("Loading Text file...")
-            fullpath = clean_path('training/datasets', f'{raw_text_file}')
+            fullpath = clean_path(TRAINING_DATASET_FOLDER, f'{raw_text_file}')
             fullpath = Path(fullpath)
             if fullpath.is_dir():
                 logger.info('Training path directory {}'.format(raw_text_file))
@@ -414,10 +419,10 @@ def ui():
                         logger.info(f"Loaded training file: {file_path.name}")
             else:
                 try:
-                    with open(clean_path('training/datasets', f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
+                    with open(clean_path(TRAINING_DATASET_FOLDER, f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
                         raw_text = file.read().replace('\r', '')
                 except:
-                    yield f"{raw_text_file}.txt doesn't seem to exsist anymore... check your training/datasets folder"
+                    yield f"{raw_text_file}.txt doesn't seem to exsist anymore... check your {TRAINING_DATASET_FOLDER} folder"
                     return
             
  
@@ -491,7 +496,7 @@ def ui():
 
                 logger.info("Loading JSONL datasets...")
             
-                with open(clean_path('training/datasets', f'{datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFile:
+                with open(clean_path(TRAINING_DATASET_FOLDER, f'{datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFile:
                     loaded_JSONLdata = json.load(dataFile)
 
                 
@@ -523,14 +528,14 @@ def ui():
                     print("Missing pad ID - setting to 0")
                     shared.tokenizer.pad_token_id = 0
 
-                with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
+                with open(clean_path(TRAINING_FORMATS_FOLDER, f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
                     format_data: dict[str, str] = json.load(formatFile)
 
                 format_text = f'Format: [JSON] {format}'    
 
                 logger.info("Loading JSON datasets...")
 
-                data = load_dataset("json", data_files=clean_path('training/datasets', f'{dataset}.json'))
+                data = load_dataset("json", data_files=clean_path(TRAINING_DATASET_FOLDER, f'{dataset}.json'))
      
             def generate_prompt(data_point: dict[str, str]):
                 for options, data in format_data.items():
@@ -680,12 +685,12 @@ def ui():
     #debug_slicer.change(lambda x: non_serialized_params.update({"debug_slicer": x}), debug_slicer, None)
 
     def update_dataset():
-        return gr.update(choices=get_datasets('training/datasets', 'json')), gr.update(choices=get_datasets('training/datasets', 'txt'))
+        return gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json')), gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'txt'))
 
     download_button.click(download_file_from_url, [download_file_url,download_check_overwrite,download_folder] , download_status).then(update_dataset,None,[dataset , raw_text_file])
 
     def update_datasetJSON():
-        return gr.update(choices=get_datasets('training/datasets', 'json')), gr.update(choices=get_datasets('training/datasets', 'json'))
+        return gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json')), gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json'))
 
 
     def split_dataset(dataset, split_dataset_perc):
@@ -703,7 +708,7 @@ def ui():
         dataset_json = f'{dataset}.json'
        
 
-        with open(clean_path('training/datasets', dataset_json), 'r', encoding='utf-8-sig') as f:
+        with open(clean_path(TRAINING_DATASET_FOLDER, dataset_json), 'r', encoding='utf-8-sig') as f:
             data = json.load(f)
 
         # Define the split ratio (e.g., 80% for training, 20% for evaluation)
@@ -721,19 +726,19 @@ def ui():
         eval_data = data[split_index:]
 
         # Save the training data to a new JSON file
-        with open(clean_path('training/datasets', dataset_json_new), 'w', encoding='utf-8') as f:
+        with open(clean_path(TRAINING_DATASET_FOLDER, dataset_json_new), 'w', encoding='utf-8') as f:
             json.dump(train_data, f, indent=2)
 
         # Save the evaluation data to a new JSON file
-        with open(clean_path('training/datasets', eval_json_new), 'w', encoding='utf-8') as f:
+        with open(clean_path(TRAINING_DATASET_FOLDER, eval_json_new), 'w', encoding='utf-8') as f:
             json.dump(eval_data, f, indent=2)    
 
 
     def select_dataset(dataset):
         dataset_json_new = f'{dataset}_train.json'
         eval_json_new = f'{dataset}_eval.json'
-        path1 = clean_path('training/datasets', dataset_json_new)
-        path2 = clean_path('training/datasets', eval_json_new)
+        path1 = clean_path(TRAINING_DATASET_FOLDER, dataset_json_new)
+        path2 = clean_path(TRAINING_DATASET_FOLDER, eval_json_new)
         returnA = 'None'
         returnB = 'None'
 
@@ -753,10 +758,10 @@ def ui():
     split_dataset_do.click(split_dataset,[dataset,split_dataset_perc],None).then(update_datasetJSON, None,[dataset, eval_dataset]).then(select_dataset, dataset,[dataset,eval_dataset])
 
     def update_datasetJSONL():
-        return gr.update(choices=get_datasets('training/datasets', 'jsonl')),gr.update(choices=get_datasets('training/datasets', 'jsonl'))
+        return gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'jsonl')),gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'jsonl'))
 
     def update_datasetJSON():
-        return gr.update(choices=get_datasets('training/datasets', 'json')),gr.update(choices=get_datasets('training/datasets', 'json'))
+        return gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json')),gr.update(choices=get_datasets(TRAINING_DATASET_FOLDER, 'json'))
 
     def convert_json_to_jsonl(dataset, system_text):
         if dataset == 'None' or dataset == '':
@@ -767,7 +772,7 @@ def ui():
         dataset_json = f'{dataset}.json'
       
 
-        with open(clean_path('training/datasets', dataset_json), 'r', encoding='utf-8-sig') as f:
+        with open(clean_path(TRAINING_DATASET_FOLDER, dataset_json), 'r', encoding='utf-8-sig') as f:
             data = json.load(f)
 
         print(f"Converting {dataset_json}...")    
@@ -792,7 +797,7 @@ def ui():
             converted_data.append(converted_entry)
 
         print(f"Saving {dataset_json_new}")
-        with open(clean_path('training/datasets', dataset_json_new), 'w') as outfile:
+        with open(clean_path(TRAINING_DATASET_FOLDER, dataset_json_new), 'w') as outfile:
             json.dump(converted_data, outfile, indent=2)
 
     def convert_text_to_jsonl(textfile, system_text, prompt):
@@ -804,7 +809,7 @@ def ui():
         dataset_txt = f'{textfile}.txt'
       
 
-        with open(clean_path('training/datasets', dataset_txt), 'r', encoding='utf-8-sig') as f:
+        with open(clean_path(TRAINING_DATASET_FOLDER, dataset_txt), 'r', encoding='utf-8-sig') as f:
             text = f.read().replace('\r', '')
 
         text_list = text.split("\n\n\n")
@@ -825,12 +830,12 @@ def ui():
                 converted_data.append(converted_entry)
 
         print(f"Saving {dataset_json_new}")
-        with open(clean_path('training/datasets', dataset_json_new), 'w') as outfile:
+        with open(clean_path(TRAINING_DATASET_FOLDER, dataset_json_new), 'w') as outfile:
             json.dump(converted_data, outfile, indent=2)
 
     def select_datasetJSONL(dataset):
         dataset_json_new = f'{dataset}.jsonl'
-        pathJSONL = clean_path('training/datasets', dataset_json_new)
+        pathJSONL = clean_path(TRAINING_DATASET_FOLDER, dataset_json_new)
         returnA = 'None'
         returnB = 'None'
 
@@ -842,7 +847,7 @@ def ui():
 
     def select_datasetJSON(dataset):
         dataset_json_new = f'{dataset}.json'
-        pathJSON = clean_path('training/datasets', dataset_json_new)
+        pathJSON = clean_path(TRAINING_DATASET_FOLDER, dataset_json_new)
         return_to_clear = 'None'
         return_to_set = 'None'
 
@@ -1256,7 +1261,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     if raw_text_file not in ['None', '']:
         train_template["template_type"] = "raw_text"
         logger.info("Loading text file...")
-        fullpath = clean_path('training/datasets', f'{raw_text_file}')
+        fullpath = clean_path(TRAINING_DATASET_FOLDER, f'{raw_text_file}')
         fullpath = Path(fullpath)
         if fullpath.is_dir():
             logger.info('Training path directory {}'.format(raw_text_file))
@@ -1269,7 +1274,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
                     logger.info(f"Loaded training file: {file_path.name}")
         else:
-            with open(clean_path('training/datasets', f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
+            with open(clean_path(TRAINING_DATASET_FOLDER, f'{raw_text_file}.txt'), 'r', encoding='utf-8') as file:
                 raw_text = file.read().replace('\r', '')
         
         # FPHAM PRECISE SLICING        
@@ -1327,7 +1332,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
     
             logger.info("Loading JSONL datasets...")
         
-            with open(clean_path('training/datasets', f'{datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFile:
+            with open(clean_path(TRAINING_DATASET_FOLDER, f'{datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFile:
                 loaded_JSONLdata = json.load(dataFile)
             
             chat_template = shared.tokenizer.chat_template
@@ -1349,7 +1354,7 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
 
             if eval_datasetJSONL not in ['None', '']:
                 logger.info("Loading JSONL eval dataset...")
-                with open(clean_path('training/datasets', f'{eval_datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFileeval:
+                with open(clean_path(TRAINING_DATASET_FOLDER, f'{eval_datasetJSONL}.jsonl'), 'r', encoding='utf-8-sig') as dataFileeval:
                     loaded_JSONLevaldata = json.load(dataFileeval)
                 logger.info("Applying chat template to eval dataset")     
                 data_list_eval = [{"jsonl": shared.tokenizer.apply_chat_template(entry["messages"], tokenize=False, add_generation_prompt=False)} for entry in loaded_JSONLevaldata]
@@ -1371,18 +1376,18 @@ def do_train(lora_name: str, always_override: bool, save_steps: int, micro_batch
                 yield "Missing format choice input, cannot continue.", zero_pd
                 return
 
-            with open(clean_path('training/formats', f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
+            with open(clean_path(TRAINING_FORMATS_FOLDER, f'{format}.json'), 'r', encoding='utf-8-sig') as formatFile:
                 format_data: dict[str, str] = json.load(formatFile)
 
             dataset_json = f'{dataset}.json'
             eval_json = f'{eval_dataset}.json'
 
             logger.info("Loading JSON training dataset...")
-            data = load_dataset("json", data_files=clean_path('training/datasets', dataset_json))
+            data = load_dataset("json", data_files=clean_path(TRAINING_DATASET_FOLDER, dataset_json))
 
             if eval_dataset not in ['None', '']:
                 logger.info("Loading JSON eval dataset...")
-                eval_data = load_dataset("json", data_files=clean_path('training/datasets', eval_json))
+                eval_data = load_dataset("json", data_files=clean_path(TRAINING_DATASET_FOLDER, eval_json))
 
 
             # == store training prompt ==
