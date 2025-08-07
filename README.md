@@ -12,7 +12,7 @@ https://github.com/FartyPants/Training_PRO
 In general the repo is WAY ahead (could be a year by now) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested and stable, while the repo version adds many experimental features that could change shape in further weeks. 
 
 
-## Training PRO is featured in my book "The Cranky Man's Guide to LoRA & QLoRA" 
+## Training PRO is featured in my huge book "The Cranky Man's Guide to LoRA & QLoRA" 
 
 <img width="200" height="320" alt="The Cranky Man's Guide to LoRA & QLoRA" src="https://github.com/user-attachments/assets/afdbaae1-54a6-421f-a52c-ce6ea4477514" />
 
