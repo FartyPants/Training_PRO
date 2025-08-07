@@ -11,6 +11,14 @@ https://github.com/FartyPants/Training_PRO
 
 In general the repo is WAY ahead (could be a year by now) of the Training PRO extension included in text WebUi. The idea is to keep the extension supplied with the WebUI well tested and stable, while the repo version adds many experimental features that could change shape in further weeks. 
 
+
+## Training PRO is featured in my book "The Cranky Man's Guide to LoRA & QLoRA" 
+
+<img width="200" height="320" alt="The Cranky Man's Guide to LoRA & QLoRA" src="https://github.com/user-attachments/assets/afdbaae1-54a6-421f-a52c-ce6ea4477514" />
+
+Find it on [Amazon](https://www.amazon.com/dp/B0FLBTR2FS), [Apple Books](https://books.apple.com/us/book/the-cranky-mans-guide-to-lora-and-qlora/id6749593842), [Kobo](https://www.kobo.com/ca/en/ebook/the-cranky-man-s-guide-to-lora-and-qlora), [Barnes & Noble](https://www.barnesandnoble.com/w/the-cranky-mans-guide-to-lora-and-qlora-f-p-ham/1148001179)
+
+
 ## Installation:
 
 Since a stable version of Training PRO is included in WebUI, to avoid issues with WebUI updates, put this repo in Training_PRO_wip folder and use Training_PRO_wip in Session, instead of the supllied Traing PRO that comes with WebUI
